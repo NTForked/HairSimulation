@@ -163,7 +163,8 @@ void loadObjectsFromFile(string filename, Hair *hair) {
 
     if (key == HAIR) {
       int particles_count;
-      double length, thickness;
+      float thickness;
+      double length, density, damping, ks;
       vector<vector<int>> positions;
 
       auto it_particles_count = object.find("particles count");
@@ -187,6 +188,27 @@ void loadObjectsFromFile(string filename, Hair *hair) {
         incompleteObjectError("hair", "thickness");
       }
 
+      auto it_density = object.find("density");
+      if (it_density != object.end()) {
+        density = *it_density;
+      } else {
+        incompleteObjectError("hair", "density");
+      }
+
+      auto it_damping = object.find("damping");
+      if (it_damping != object.end()) {
+        damping = *it_damping;
+      } else {
+        incompleteObjectError("hair", "damping");
+      }
+
+      auto it_ks = object.find("ks");
+      if (it_ks != object.end()) {
+        ks = *it_ks;
+      } else {
+        incompleteObjectError("hair", "ks");
+      }
+
       auto it_positions = object.find("positions");
       if (it_positions != object.end()) {
         vector<json> points = *it_positions;
@@ -199,6 +221,9 @@ void loadObjectsFromFile(string filename, Hair *hair) {
       hair->particles_count = particles_count;
       hair->length = length;
       hair->thickness = thickness;
+      hair->density = density;
+      hair->damping = damping;
+      hair->ks = ks;
 
       i.close();
     }
@@ -229,9 +254,8 @@ int main(int argc, char **argv) {
 
   createGLContexts();
 
-  // Initialize the Cloth object
+  // Initialize the Hair object
   hair.buildGrid();
-//  cloth.buildClothMesh();
 
   // Initialize the ClothSimulator object
   app = new ClothSimulator(screen);

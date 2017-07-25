@@ -1,10 +1,10 @@
 {
   "hair": {
-    "damping": 0.2,
+    "damping": 4472,
     "density": 150.0,
-    "ks": 5000.0,
-    "length": 1,
-    "particles count": 50,
+    "ks": 5000000.0,
+    "length": 75,
+    "particles count": 75,
     "thickness": 0.0095
   }
 }

@@ -101,7 +101,7 @@ void ClothSimulator::drawContents() {
     vector<Vector3D> external_accelerations = {gravity};
 
     for (int i = 0; i < simulation_steps; i++) {
-      hair->simulate(frames_per_sec, simulation_steps, &(hair->particles_count), &(hair->length), &(hair->thickness));
+      hair->simulate(frames_per_sec, simulation_steps, external_accelerations);
     }
   }
 
