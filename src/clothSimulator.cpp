@@ -132,8 +132,10 @@ void ClothSimulator::drawContents() {
 
 void ClothSimulator::drawHair(GLShader &shader) {
   int num_springs = hair->particles_count - 1;
-
   MatrixXf positions(3, num_springs * 2);
+
+  int num_tris = hair->particles_count;
+  MatrixXf particle_positions(3, 3);
 
   int si = 0;
   // Draw springs as lines
@@ -143,9 +145,17 @@ void ClothSimulator::drawHair(GLShader &shader) {
     Vector3D pa = s.pm_a->position;
     Vector3D pb = s.pm_b->position;
 
+    particle_positions.col(0) << pa.x+0.1, pa.y, pa.z;
+    particle_positions.col(1) << pa.x, pa.y+0.1, pa.z;
+    particle_positions.col(2) << pa.x-0.1, pa.y, pa.z;
+
+
+    shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
+    shader.uploadAttrib("in_position", particle_positions);
+    shader.drawArray(GL_TRIANGLES, 0, 3);
+
     positions.col(si) << pa.x, pa.y, pa.z;
     positions.col(si + 1) << pb.x, pb.y, pb.z;
-
     si += 2;
   }
 

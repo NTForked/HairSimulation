@@ -21,6 +21,9 @@ struct Hair {
   void buildGrid();
 
   void simulate(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations);
+  void stretchSpring(double frames_per_sec, double simulation_steps);
+  void smoothingFunction();
+  void update_bending_positions();
 
   int particles_count;
   double length;
@@ -32,6 +35,7 @@ struct Hair {
   double density;
   double damping;
   double ks;
+  double ab; // bend smoothing amount
   };
 
 #endif //CLOTHSIM_HAIR_H
