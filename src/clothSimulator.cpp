@@ -132,10 +132,11 @@ void ClothSimulator::drawContents() {
 
 void ClothSimulator::drawHair(GLShader &shader) {
   int num_springs = hair->particles_count - 1;
-  MatrixXf positions(3, num_springs * 2);
 
-  int num_tris = hair->particles_count;
+  MatrixXf springs(3, num_springs * 2);
   MatrixXf particle_positions(3, 3);
+  MatrixXf smoothed_positions(3, 3);
+  MatrixXf smooth_curve(3, num_springs * 2);
 
   int si = 0;
   // Draw springs as lines
@@ -145,22 +146,40 @@ void ClothSimulator::drawHair(GLShader &shader) {
     Vector3D pa = s.pm_a->position;
     Vector3D pb = s.pm_b->position;
 
+    Vector3D smoothed_pa = s.pm_a->smoothed_position;
+    Vector3D smoothed_pb = s.pm_b->smoothed_position;
+
     particle_positions.col(0) << pa.x+0.1, pa.y, pa.z;
     particle_positions.col(1) << pa.x, pa.y+0.1, pa.z;
     particle_positions.col(2) << pa.x-0.1, pa.y, pa.z;
 
+    smoothed_positions.col(0) << smoothed_pa.x+0.1, smoothed_pa.y, smoothed_pa.z;
+    smoothed_positions.col(1) << smoothed_pa.x, smoothed_pa.y+0.1, smoothed_pa.z;
+    smoothed_positions.col(2) << smoothed_pa.x-0.1, smoothed_pa.y, smoothed_pa.z;
+
+    springs.col(si) << pa.x, pa.y, pa.z;
+    springs.col(si + 1) << pb.x, pb.y, pb.z;
+
+    smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
+    smooth_curve.col(si+1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
 
     shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
     shader.uploadAttrib("in_position", particle_positions);
     shader.drawArray(GL_TRIANGLES, 0, 3);
 
-    positions.col(si) << pa.x, pa.y, pa.z;
-    positions.col(si + 1) << pb.x, pb.y, pb.z;
+    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+    shader.uploadAttrib("in_position", smoothed_positions);
+    shader.drawArray(GL_TRIANGLES, 0, 3);
+
     si += 2;
   }
 
   shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
-  shader.uploadAttrib("in_position", positions);
+  shader.uploadAttrib("in_position", springs);
+  shader.drawArray(GL_LINES, 0, num_springs * 2);
+
+  shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+  shader.uploadAttrib("in_position", smooth_curve);
   shader.drawArray(GL_LINES, 0, num_springs * 2);
 }
 
@@ -239,6 +258,8 @@ bool ClothSimulator::cursorPosCallbackEvent(double x, double y) {
     mouseMoved(x, y);
   }
 
+  mouse_x_prev = mouse_x;
+  mouse_y_prev = mouse_y;
   mouse_x = x;
   mouse_y = y;
 
@@ -283,14 +304,23 @@ bool ClothSimulator::mouseButtonCallbackEvent(int button, int action,
 void ClothSimulator::mouseMoved(double x, double y) { y = screen_h - y; }
 
 void ClothSimulator::mouseLeftDragged(double x, double y) {
-  float dx = x - mouse_x;
-  float dy = y - mouse_y;
+  double dx = x - mouse_x_prev;
+  double dy = y - mouse_y_prev;
 
-  camera.rotate_by(-dy * (PI / screen_h), -dx * (PI / screen_w));
+//  camera.rotate_by(-dy * (PI / screen_h), -dx * (PI / screen_w));
+
+  hair->point_masses[0].position.x += dx;
+  hair->point_masses[0].position.y += dy;
 }
 
 void ClothSimulator::mouseRightDragged(double x, double y) {
-  camera.move_by(mouse_x - x, y - mouse_y, canonical_view_distance);
+//  camera.move_by(mouse_x - x, y - mouse_y, canonical_view_distance);
+
+  double dx = x - mouse_x;
+  double dy = y - mouse_y;
+
+  hair->point_masses[0].position.x += dx;
+  hair->point_masses[0].position.y += dy;
 }
 
 bool ClothSimulator::keyCallbackEvent(int key, int scancode, int action,
@@ -321,6 +351,18 @@ bool ClothSimulator::keyCallbackEvent(int key, int scancode, int action,
         is_paused = true;
       }
       break;
+      case GLFW_KEY_LEFT:
+        shiftHair(-1, 0);
+        break;
+      case GLFW_KEY_RIGHT:
+        shiftHair(1, 0);
+        break;
+      case GLFW_KEY_UP:
+        shiftHair(0, 1);
+        break;
+      case GLFW_KEY_DOWN:
+        shiftHair(0, -1);
+        break;
     }
   }
 
@@ -539,3 +581,9 @@ void ClothSimulator::initGUI(Screen *screen) {
         [this](const nanogui::Color &color) { this->color = color; });
   }
 }
+
+void ClothSimulator::shiftHair(int x, int y){
+  hair->point_masses[0].position.x += x;
+  hair->point_masses[0].position.y += y;
+}
+

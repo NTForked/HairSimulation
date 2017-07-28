@@ -79,6 +79,7 @@ private:
   void mouseLeftDragged(double x, double y);
   void mouseRightDragged(double x, double y);
   void mouseMoved(double x, double y);
+  void shiftHair(int x, int y);
 
   // Mouse flags
 
@@ -98,6 +99,8 @@ private:
 
   int mouse_x;
   int mouse_y;
+  int mouse_x_prev;
+  int mouse_y_prev;
 
   int screen_w;
   int screen_h;

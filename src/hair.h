@@ -22,6 +22,7 @@ struct Hair {
 
   void simulate(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations);
   void stretchSpring(double frames_per_sec, double simulation_steps);
+  void bendSpring(double frames_per_sec, double simulation_steps);
   void smoothingFunction();
   void update_bending_positions();
 

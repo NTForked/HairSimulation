@@ -2,6 +2,7 @@
 #include <math.h>
 #include <random>
 #include <vector>
+#include "./CGL/matrix3x3.h"
 
 #include "hair.h"
 
@@ -17,7 +18,8 @@ void Hair::buildGrid() {
 
   bool pinned = true;
   for (int y = 0; y < particles_count; y++){
-    double x_pos = ((double) rand() * 0.7) / (RAND_MAX);
+//    double x_pos = ((double) rand() * 0.7) / (RAND_MAX);
+    double x_pos = 0.0;
     double y_pos = -1.0 * (y * space);
     Vector3D pos = Vector3D(x_pos, y_pos, 1.0);
     PointMass *m = new PointMass(pos, pinned);
@@ -52,6 +54,10 @@ void Hair::simulate(double frames_per_sec, double simulation_steps, vector<Vecto
 
   stretchSpring(frames_per_sec, simulation_steps);
 
+  smoothingFunction();
+  update_bending_positions();
+//  bendSpring(frames_per_sec, simulation_steps);
+
   for (PointMass &pm : point_masses) {
     if (!pm.pinned) {
       Vector3D temp = pm.position;
@@ -76,9 +82,6 @@ void Hair::simulate(double frames_per_sec, double simulation_steps, vector<Vecto
       }
     }
   }
-
-  smoothingFunction();
-  update_bending_positions();
 }
 
 void  Hair::stretchSpring(double frames_per_sec, double simulation_steps) {
@@ -104,6 +107,39 @@ void  Hair::stretchSpring(double frames_per_sec, double simulation_steps) {
     double forceApplied = ks * (current_length - s.rest_length) + ((damping) * dot(delta_v, unit_dir));
     s.pm_a->forces += unit_dir * forceApplied;
     s.pm_b->forces += (s.pm_a->position - s.pm_b->position).unit() * forceApplied;
+  }
+}
+
+void Hair::bendSpring(double frames_per_sec, double simulation_steps) {
+  double delta_t = 1.0f / frames_per_sec / simulation_steps;
+  double bend_spring_constant = 100.0;
+  double bend_spring_damping = 40.0;
+
+  for (int i = 0; i < springs.size() - 1; i++) {
+    PointMass* pm_before = &point_masses[i-1];
+    PointMass* pm = &point_masses[i];
+    PointMass* pm_after = &point_masses[i+1];
+
+    Vector3D frame_1 = (pm->smoothed_position - pm_before->smoothed_position).unit();
+    Vector3D frame_2 = cross(frame_1, Vector3D(0, 0, -1)).unit();
+
+    double frame_coord[] = {
+            frame_1.x, frame_2.x, 0.0,
+            frame_1.y, frame_2.y, 0.0,
+            frame_1.z, frame_2.z, -1.0
+    };
+
+    Matrix3x3 ref_frame = Matrix3x3(frame_coord);
+
+    Vector3D edge = (pm_after->position - pm->position);
+    Vector3D ref_vector = ref_frame.T() * edge;
+    Vector3D target_vector = ref_frame * ref_vector;
+    Vector3D delta_v = pm_after->velocity(delta_t) - pm->velocity(delta_t);
+
+    Vector3D forceApplied = (bend_spring_constant * (edge - target_vector)) +
+                            bend_spring_damping * (delta_v - (dot(delta_v, edge.unit())) * edge.unit());
+
+    pm_after->forces += (target_vector - pm_after->position).unit() * forceApplied;
   }
 }
 
@@ -142,9 +178,13 @@ void Hair::smoothingFunction() {
 }
 
 void Hair::update_bending_positions() {
-  for (int i = 1; i < point_masses.size(); i++) {
+  for (int i = 0; i < point_masses.size(); i++) {
     PointMass* pm = &point_masses[i];
-    PointMass* pm_before = &point_masses[i-1];
-    pm->position = pm_before->position + pm_before->smoothing_amt;
+    if (i == 0) {
+      pm->smoothed_position = pm->position;
+    } else {
+      PointMass* pm_before = &point_masses[i-1];
+      pm->smoothed_position = pm_before->smoothed_position + pm_before->smoothing_amt;
+    }
   }
 }
