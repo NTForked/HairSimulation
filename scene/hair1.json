@@ -1,10 +1,12 @@
 {
   "hair": {
-    "damping": 4472,
-    "density": 150.0,
+    "cs": 4472,
     "ks": 5000000.0,
-    "length": 9,
-    "particles count": 10,
+    "cb": 40,
+    "kb": 100,
+    "density": 5000.0,
+    "length": 12,
+    "particles count": 7,
     "thickness": 0.0095,
     "bend smoothing amount": 1
   }

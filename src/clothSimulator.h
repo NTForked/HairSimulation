@@ -30,7 +30,11 @@ public:
 
 private:
   virtual void initGUI(Screen *screen);
-  void drawHair(GLShader &shader);
+  void drawRestPose(GLShader &shader);
+  void drawStretchSprings(GLShader &shader);
+  void drawSmoothCurve(GLShader &shader);
+  void drawLocalFrame(GLShader &shader);
+  void drawTargetVector(GLShader &shader);
 
   // Camera methods
 
@@ -40,8 +44,8 @@ private:
 
   // Default simulation values
 
-  int frames_per_sec = 90;
-  int simulation_steps = 30;
+  int frames_per_sec = 24;    // 24 - 15
+  int simulation_steps = 15;
 
   CGL::Vector3D gravity = CGL::Vector3D(0, -9.8, 0);
   nanogui::Color color = nanogui::Color(1.0f, 0.0f, 0.0f, 1.0f);
@@ -79,7 +83,6 @@ private:
   void mouseLeftDragged(double x, double y);
   void mouseRightDragged(double x, double y);
   void mouseMoved(double x, double y);
-  void shiftHair(int x, int y);
 
   // Mouse flags
 
@@ -90,6 +93,10 @@ private:
   // Keyboard flags
 
   bool ctrl_down = false;
+  bool left_pressed = false;
+  bool right_pressed = false;
+  bool up_pressed = false;
+  bool down_pressed = false;
 
   // Simulation flags
 

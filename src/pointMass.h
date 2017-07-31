@@ -24,11 +24,22 @@ struct PointMass {
   // static values
   bool pinned;
   Vector3D start_position;
+  Vector3D rest_smoothing_amt;
+  Vector3D rest_smoothed_position;
+  Vector3D ref_vector;
 
-  // dynamic values
+// dynamic values
   Vector3D position;
   Vector3D last_position;
   Vector3D forces;
+  Vector3D smoothing_amt;
+  Vector3D smoothed_position;
+
+  // debug values
+  Vector3D bend_target_pos;
+  Vector3D frame_1;
+  Vector3D frame_2;
+  Vector3D change_pos;
 
   // mesh reference
   Halfedge *halfedge;

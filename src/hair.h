@@ -23,8 +23,7 @@ struct Hair {
   void simulate(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations);
   void stretchSpring(double frames_per_sec, double simulation_steps);
   void bendSpring(double frames_per_sec, double simulation_steps);
-  void smoothingFunction();
-  void update_bending_positions();
+  void smoothingFunction(int rest_curve);     // parameter: for rest curve (1) or for current curve (0)
 
   int particles_count;
   double length;
@@ -34,8 +33,10 @@ struct Hair {
 
   // Mass-spring parameters
   double density;
-  double damping;
+  double cs;
   double ks;
+  double cb;
+  double kb;
   double ab; // bend smoothing amount
   };
 

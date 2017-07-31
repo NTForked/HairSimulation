@@ -164,7 +164,7 @@ void loadObjectsFromFile(string filename, Hair *hair) {
     if (key == HAIR) {
       int particles_count;
       float thickness;
-      double length, density, damping, ks;
+      double length, density, cs, ks, ab, cb, kb;
       vector<vector<int>> positions;
 
       auto it_particles_count = object.find("particles count");
@@ -195,11 +195,11 @@ void loadObjectsFromFile(string filename, Hair *hair) {
         incompleteObjectError("hair", "density");
       }
 
-      auto it_damping = object.find("damping");
-      if (it_damping != object.end()) {
-        damping = *it_damping;
+      auto it_cs = object.find("cs");
+      if (it_cs != object.end()) {
+        cs = *it_cs;
       } else {
-        incompleteObjectError("hair", "damping");
+        incompleteObjectError("hair", "cs");
       }
 
       auto it_ks = object.find("ks");
@@ -207,6 +207,27 @@ void loadObjectsFromFile(string filename, Hair *hair) {
         ks = *it_ks;
       } else {
         incompleteObjectError("hair", "ks");
+      }
+
+      auto it_cb = object.find("cb");
+      if (it_cb != object.end()) {
+        cb = *it_cb;
+      } else {
+        incompleteObjectError("hair", "cb");
+      }
+
+      auto it_kb = object.find("kb");
+      if (it_kb != object.end()) {
+        kb = *it_kb;
+      } else {
+        incompleteObjectError("hair", "kb");
+      }
+
+      auto it_ab = object.find("bend smoothing amount");
+      if (it_ab != object.end()) {
+        ab = *it_ab;
+      } else {
+        incompleteObjectError("hair", "bend smoothing amount");
       }
 
       auto it_positions = object.find("positions");
@@ -222,8 +243,11 @@ void loadObjectsFromFile(string filename, Hair *hair) {
       hair->length = length;
       hair->thickness = thickness;
       hair->density = density;
-      hair->damping = damping;
+      hair->cs = cs;
       hair->ks = ks;
+      hair->cb = cb;
+      hair->kb = kb;
+      hair->ab = ab;
 
       i.close();
     }
