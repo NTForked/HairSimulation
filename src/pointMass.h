@@ -24,8 +24,10 @@ struct PointMass {
   // static values
   bool pinned;
   Vector3D start_position;
-  Vector3D rest_smoothing_amt;
-  Vector3D rest_smoothed_position;
+  Vector3D rest_bend_smoothing_amt;
+  Vector3D rest_bend_smoothed_position;
+  Vector3D rest_core_smoothing_amt;
+  Vector3D rest_core_smoothed_position;
   Vector3D ref_vector;
 
 // dynamic values
@@ -34,6 +36,8 @@ struct PointMass {
   Vector3D forces;
   Vector3D smoothing_amt;
   Vector3D smoothed_position;
+  Vector3D smoothed_velocity;
+
 
   // debug values
   Vector3D bend_target_pos;

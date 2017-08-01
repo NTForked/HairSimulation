@@ -19,7 +19,7 @@ void Hair::buildGrid() {
   bool pinned = true;
   for (int y = 0; y < particles_count; y++){
 //    double x_pos = ((double) rand() * 0.7) / (RAND_MAX);
-    double x_pos = (y % 2) * 2.0;
+    double x_pos = (y % 2);
 //    double x_pos = 0.0;
     double y_pos = -1.0 * (y * space);
     Vector3D pos = Vector3D(x_pos, y_pos, 0.0);
@@ -36,7 +36,8 @@ void Hair::buildGrid() {
     springs.push_back(*s);
   }
 
-  smoothingFunction(1);
+  restBendSmoothingFunction();
+  restCoreSmoothingFunction();
 
   for (int i = 0; i < point_masses.size() - 1; i++) {
     Vector3D rest_edge = (point_masses[i+1].start_position - point_masses[i].start_position);
@@ -44,7 +45,7 @@ void Hair::buildGrid() {
     if (i == 0) {
       (&point_masses[i])->ref_vector = Vector3D();
     } else {
-      Vector3D frame_1 = (point_masses[i].rest_smoothed_position - point_masses[i-1].rest_smoothed_position).unit();
+      Vector3D frame_1 = (point_masses[i].rest_bend_smoothed_position - point_masses[i-1].rest_bend_smoothed_position).unit();
       Vector3D frame_2 = cross(frame_1, Vector3D(0, 0, -1)).unit();
 
       double frame_coord[] = {
@@ -53,8 +54,6 @@ void Hair::buildGrid() {
               frame_1.z, frame_2.z, -1.0
       };
       (&point_masses[i])->ref_vector = (Matrix3x3(frame_coord).T() * rest_edge);
-//      (&point_masses[i])->frame_1 = frame_1;
-//      (&point_masses[i])->frame_2 = frame_2;
     }
   }
 }
@@ -75,10 +74,9 @@ void Hair::simulate(double frames_per_sec, double simulation_steps, vector<Vecto
     pm.forces += totalExtAccel;
   }
 
-  smoothingFunction(0);
-
   stretchSpring(frames_per_sec, simulation_steps);
   bendSpring(frames_per_sec, simulation_steps);
+  coreSpring(frames_per_sec, simulation_steps);
 
   for (PointMass &pm : point_masses) {
     if (!pm.pinned) {
@@ -108,7 +106,7 @@ void Hair::simulate(double frames_per_sec, double simulation_steps, vector<Vecto
   }
 }
 
-void  Hair::stretchSpring(double frames_per_sec, double simulation_steps) {
+void Hair::stretchSpring(double frames_per_sec, double simulation_steps) {
   double delta_t = 1.0f / frames_per_sec / simulation_steps;
   for (Spring &s : springs) {
     double current_length = (s.pm_a->position - s.pm_b->position).norm();
@@ -122,6 +120,7 @@ void  Hair::stretchSpring(double frames_per_sec, double simulation_steps) {
 }
 
 void Hair::bendSpring(double frames_per_sec, double simulation_steps) {
+  positionSmoothingFunction(1);
   double delta_t = 1.0f / frames_per_sec / simulation_steps;
 
   for (int i = 1; i < point_masses.size() - 1; i++) {
@@ -144,95 +143,196 @@ void Hair::bendSpring(double frames_per_sec, double simulation_steps) {
     Matrix3x3 ref_frame = Matrix3x3(frame_coord);
 
     Vector3D target_vector = (ref_frame * pm->ref_vector);
-    pm->bend_target_pos = pm->position + target_vector;
     Vector3D delta_v = pm_after->velocity(delta_t) - pm->velocity(delta_t);
 
     Vector3D edge = (pm_after->position - pm->position);
     Vector3D forceApplied = (kb * (edge - target_vector)) +
                             cb * (delta_v - (dot(delta_v, edge.unit())) * edge.unit());
 
-    if ((pm->bend_target_pos - pm_after->position).x != 0 || (pm->bend_target_pos - pm_after->position).y != 0) {
-      Vector3D unit_dir = (pm->bend_target_pos - pm_after->position).unit();
-//    pm_after->forces += forceApplied;
-      pm_after->forces += (pm->bend_target_pos - pm_after->position).unit() * forceApplied;
-    }
+    pm_after->forces += forceApplied;
+    pm_after->bend_target_pos = pm_after->position + forceApplied.unit();
   }
 }
 
-void Hair::smoothingFunction(int rest_curve) {
+void Hair::coreSpring(double frames_per_sec, double simulation_steps) {
+  positionSmoothingFunction(0);
+  velocitySmoothingFunction(frames_per_sec, simulation_steps);
+
+  for (int i = 0; i < point_masses.size(); i++) {
+    PointMass *pm = &point_masses[i];
+    PointMass *pm_after = &point_masses[i + 1];
+    Vector3D smooth_rest_edge = pm_after->rest_core_smoothed_position - pm->rest_core_smoothed_position;    // rest bi
+    Vector3D smooth_curr_edge = pm_after->smoothed_position - pm->smoothed_position;    // bi
+
+    Vector3D forceApplied = (kc * (smooth_curr_edge.norm() - smooth_rest_edge.norm()) * smooth_curr_edge.unit()) +
+                            (cc * dot(pm->smoothed_velocity, smooth_curr_edge.unit()) * smooth_curr_edge.unit());
+
+    pm->forces += forceApplied;
+  }
+}
+
+void Hair::restBendSmoothingFunction() {
   double l = springs[0].rest_length;
 
-  if (!rest_curve){
-    for (int i = 0; i < point_masses.size()-1; i++) {
-      if (i == 0) {
-        PointMass* pm = &point_masses[0];
-        PointMass* pm1 = &point_masses[1];
-        pm->smoothing_amt = pm1->position - pm->position;
-        pm->smoothed_position = pm->position;
+  for (int i = 0; i < point_masses.size()-1; i++) {
+    if (i == 0) {
+      PointMass* pm = &point_masses[0];
+      PointMass* pm1 = &point_masses[1];
+      pm->rest_bend_smoothing_amt = pm1->start_position - pm->start_position;
+      pm->rest_bend_smoothed_position = pm->start_position;
+    } else {
+      double beta = min(1.0, 1.0-exp(-l/ab));
+      double minus_beta = 1.0 - beta;
+
+      PointMass* pm = &point_masses[i];
+      PointMass* pm_before = &point_masses[i-1];
+      Vector3D pm_diff = point_masses[i+1].start_position - pm->start_position;
+
+      Vector3D a = (2.0 * minus_beta * point_masses[i-1].rest_bend_smoothing_amt);
+      Vector3D b;
+
+      if (i == 1) {
+        b = (pow(minus_beta, 2.0) * point_masses[0].rest_bend_smoothing_amt);
       } else {
-        double beta = min(1.0, 1.0-exp(-l/ab));
-        double minus_beta = 1.0 - beta;
-
-        PointMass* pm = &point_masses[i];
-        PointMass* pm_before = &point_masses[i-1];
-        Vector3D pm_diff = point_masses[i+1].position - pm->position;
-
-        Vector3D a = (2.0 * minus_beta * point_masses[i-1].smoothing_amt);
-        Vector3D b;
-
-        if (i == 1) {
-          b = (pow(minus_beta, 2.0) * point_masses[0].smoothing_amt);
-        } else {
-          b = (pow(minus_beta, 2.0) * point_masses[i-2].smoothing_amt);
-        }
-
-        Vector3D c = (pow(beta, 2.0) * pm_diff);
-        pm->smoothing_amt = a - b + c;
-        pm->smoothed_position = pm_before->smoothed_position + pm_before->smoothing_amt;
+        b = (pow(minus_beta, 2.0) * point_masses[i-2].rest_bend_smoothing_amt);
       }
 
-      if (i == point_masses.size()-2) { // last loop
-        PointMass* pm = &point_masses[i+1];
-        PointMass* pm_before = &point_masses[i];
-        pm->smoothed_position = pm_before->smoothed_position + pm_before->smoothing_amt;
-      }
+      Vector3D c = (pow(beta, 2.0) * pm_diff);
+      pm->rest_bend_smoothing_amt = a - b + c;
+      pm->rest_bend_smoothed_position = pm_before->rest_bend_smoothed_position + pm_before->rest_bend_smoothing_amt;
     }
-  }
 
-  if (rest_curve) {
-    for (int i = 0; i < point_masses.size()-1; i++) {
-      if (i == 0) {
-        PointMass* pm = &point_masses[0];
-        PointMass* pm1 = &point_masses[1];
-        pm->rest_smoothing_amt = pm1->start_position - pm->start_position;
-        pm->rest_smoothed_position = pm->start_position;
-      } else {
-        double beta = min(1.0, 1.0-exp(-l/ab));
-        double minus_beta = 1.0 - beta;
-
-        PointMass* pm = &point_masses[i];
-        PointMass* pm_before = &point_masses[i-1];
-        Vector3D pm_diff = point_masses[i+1].start_position - pm->start_position;
-
-        Vector3D a = (2.0 * minus_beta * point_masses[i-1].rest_smoothing_amt);
-        Vector3D b;
-
-        if (i == 1) {
-          b = (pow(minus_beta, 2.0) * point_masses[0].rest_smoothing_amt);
-        } else {
-          b = (pow(minus_beta, 2.0) * point_masses[i-2].rest_smoothing_amt);
-        }
-
-        Vector3D c = (pow(beta, 2.0) * pm_diff);
-        pm->rest_smoothing_amt = a - b + c;
-        pm->rest_smoothed_position = pm_before->rest_smoothed_position + pm_before->rest_smoothing_amt;
-      }
-
-      if (i == point_masses.size()-2) { // last loop
-        PointMass* pm = &point_masses[i+1];
-        PointMass* pm_before = &point_masses[i];
-        pm->rest_smoothed_position = pm_before->rest_smoothed_position + pm_before->rest_smoothing_amt;
-      }
+    if (i == point_masses.size()-2) { // last loop
+      PointMass* pm = &point_masses[i+1];
+      PointMass* pm_before = &point_masses[i];
+      pm->rest_bend_smoothed_position = pm_before->rest_bend_smoothed_position + pm_before->rest_bend_smoothing_amt;
     }
   }
 }
+
+void Hair::restCoreSmoothingFunction() {
+  double l = springs[0].rest_length;
+
+  for (int i = 0; i < point_masses.size()-1; i++) {
+    if (i == 0) {
+      PointMass* pm = &point_masses[0];
+      PointMass* pm1 = &point_masses[1];
+      pm->rest_core_smoothing_amt = pm1->start_position - pm->start_position;
+      pm->rest_core_smoothed_position = pm->start_position;
+    } else {
+      double beta = min(1.0, 1.0-exp(-l/ac));
+      double minus_beta = 1.0 - beta;
+
+      PointMass* pm = &point_masses[i];
+      PointMass* pm_before = &point_masses[i-1];
+      Vector3D pm_diff = point_masses[i+1].start_position - pm->start_position;
+
+      Vector3D a = (2.0 * minus_beta * point_masses[i-1].rest_core_smoothing_amt);
+      Vector3D b;
+
+      if (i == 1) {
+        b = (pow(minus_beta, 2.0) * point_masses[0].rest_core_smoothing_amt);
+      } else {
+        b = (pow(minus_beta, 2.0) * point_masses[i-2].rest_core_smoothing_amt);
+      }
+
+      Vector3D c = (pow(beta, 2.0) * pm_diff);
+      pm->rest_core_smoothing_amt = a - b + c;
+      pm->rest_core_smoothed_position = pm_before->rest_core_smoothed_position + pm_before->rest_core_smoothing_amt;
+    }
+
+    if (i == point_masses.size()-2) { // last loop
+      PointMass* pm = &point_masses[i+1];
+      PointMass* pm_before = &point_masses[i];
+      pm->rest_core_smoothed_position = pm_before->rest_core_smoothed_position + pm_before->rest_core_smoothing_amt;
+    }
+  }
+}
+
+void Hair::positionSmoothingFunction(int bend) {
+  double l = springs[0].rest_length;
+
+  double smoothing_constant;
+  if (bend) {
+    smoothing_constant = ab;
+  } else {
+    smoothing_constant = ac;
+  }
+
+  for (int i = 0; i < point_masses.size()-1; i++) {
+    if (i == 0) {
+      PointMass* pm = &point_masses[0];
+      PointMass* pm1 = &point_masses[1];
+      pm->smoothing_amt = pm1->position - pm->position;
+      pm->smoothed_position = pm->position;
+    } else {
+      double beta = min(1.0, 1.0-exp(-l/smoothing_constant));
+      double minus_beta = 1.0 - beta;
+
+      PointMass* pm = &point_masses[i];
+      PointMass* pm_before = &point_masses[i-1];
+      Vector3D pm_diff = point_masses[i+1].position - pm->position;
+
+      Vector3D a = (2.0 * minus_beta * point_masses[i-1].smoothing_amt);
+      Vector3D b;
+
+      if (i == 1) {
+        b = (pow(minus_beta, 2.0) * point_masses[0].smoothing_amt);
+      } else {
+        b = (pow(minus_beta, 2.0) * point_masses[i-2].smoothing_amt);
+      }
+
+      Vector3D c = (pow(beta, 2.0) * pm_diff);
+      pm->smoothing_amt = a - b + c;
+      pm->smoothed_position = pm_before->smoothed_position + pm_before->smoothing_amt;
+    }
+
+    if (i == point_masses.size()-2) { // last loop
+      PointMass* pm = &point_masses[i+1];
+      PointMass* pm_before = &point_masses[i];
+      pm->smoothed_position = pm_before->smoothed_position + pm_before->smoothing_amt;
+    }
+  }
+}
+
+void Hair::velocitySmoothingFunction(double frames_per_sec, double simulation_steps) {
+  double delta_t = 1.0f / frames_per_sec / simulation_steps;
+  double l = springs[0].rest_length;
+
+  for (int i = 0; i < point_masses.size()-1; i++) {
+    if (i == 0) {
+      PointMass* pm = &point_masses[0];
+      PointMass* pm1 = &point_masses[1];
+      pm->smoothing_amt = pm1->velocity(delta_t) - pm->velocity(delta_t);
+      pm->smoothed_velocity = pm->velocity(delta_t);
+    } else {
+      double beta = min(1.0, 1.0-exp(-l/ac));
+      double minus_beta = 1.0 - beta;
+
+      PointMass* pm = &point_masses[i];
+      PointMass* pm_before = &point_masses[i-1];
+      Vector3D pm_diff = point_masses[i+1].velocity(delta_t) - pm->velocity(delta_t);
+
+      Vector3D a = (2.0 * minus_beta * point_masses[i-1].smoothing_amt);
+      Vector3D b;
+
+      if (i == 1) {
+        b = (pow(minus_beta, 2.0) * point_masses[0].smoothing_amt);
+      } else {
+        b = (pow(minus_beta, 2.0) * point_masses[i-2].smoothing_amt);
+      }
+
+      Vector3D c = (pow(beta, 2.0) * pm_diff);
+      pm->smoothing_amt = a - b + c;
+      pm->smoothed_velocity = pm_before->smoothed_velocity + pm_before->smoothing_amt;
+    }
+
+    if (i == point_masses.size()-2) { // last loop
+      PointMass* pm = &point_masses[i+1];
+      PointMass* pm_before = &point_masses[i];
+      pm->smoothed_velocity = pm_before->smoothed_velocity + pm_before->smoothing_amt;
+    }
+  }
+}
+
+

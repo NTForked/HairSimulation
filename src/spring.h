@@ -10,11 +10,11 @@ using namespace std;
 
 namespace CGL {
 
-enum e_spring_type { STRUCTURAL = 0, SHEARING = 1, BENDING = 2 };
+//enum e_spring_type { STRUCTURAL = 0, SHEARING = 1, BENDING = 2 };
 
 struct Spring {
-  Spring(PointMass *a, PointMass *b, e_spring_type spring_type)
-      : pm_a(a), pm_b(b), spring_type(spring_type) {
+  Spring(PointMass *a, PointMass *b)
+      : pm_a(a), pm_b(b) {
     rest_length = (pm_a->position - pm_b->position).norm();
   }
 
@@ -23,7 +23,7 @@ struct Spring {
 
   double rest_length;
 
-  e_spring_type spring_type;
+//  e_spring_type spring_type;
 
   PointMass *pm_a;
   PointMass *pm_b;
