@@ -1,18 +1,19 @@
 {
   "hair": {
+
     "cs": 4472,
-    "ks": 5000000.0,
+    "ks": 5000000,
 
     "cb": 40,
     "kb": 100,
     "ab": 1,
 
-    "cc": 100,
-    "kc": 15000,
+    "cc": 10000,
+    "kc": 600000,
     "ac": 0.3,
 
-    "density": 5000.0,
-    "length": 6,
+    "density": 150.0,
+    "length": 120,
     "particles count": 7,
     "thickness": 0.0095
   }

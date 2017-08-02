@@ -19,7 +19,6 @@ struct Hair {
   ~Hair();
 
   void buildGrid();
-
   void simulate(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations);
   void stretchSpring(double frames_per_sec, double simulation_steps);
   void bendSpring(double frames_per_sec, double simulation_steps);
@@ -34,17 +33,26 @@ struct Hair {
   float thickness;
   vector<PointMass> point_masses;
   vector<Spring> springs;
-
-  // Mass-spring parameters
+  double avg_spring_length;
   double density;
+
+  // stretch springs
   double cs;
   double ks;
+
+  // bend springs
   double ab; // bend smoothing amount
   double cb;
   double kb;
+
+  // core springs
   double ac; // core smoothing amount
   double cc;
   double kc;
+
+  bool enable_stretch_constraints = true;
+  bool enable_bending_constraints = true;
+  bool enable_core_constraints = true;
   };
 
 #endif //CLOTHSIM_HAIR_H

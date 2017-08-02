@@ -43,7 +43,6 @@ struct PointMass {
   Vector3D bend_target_pos;
   Vector3D frame_1;
   Vector3D frame_2;
-  Vector3D change_pos;
 
   // mesh reference
   Halfedge *halfedge;

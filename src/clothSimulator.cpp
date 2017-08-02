@@ -100,7 +100,7 @@ void ClothSimulator::drawContents() {
   if (!is_paused) {
     vector<Vector3D> external_accelerations = {gravity};
 
-    double change_pos = 1.0 / simulation_steps;
+    double change_pos = 2.0 / simulation_steps;
     if (left_pressed || down_pressed) {
       change_pos *= -1.0;
     }
@@ -141,8 +141,8 @@ void ClothSimulator::drawContents() {
   switch (activeShader) {
   case WIREFRAME:
     drawRestPose(shader);
-//    drawStretchSprings(shader);
-    drawSmoothCurve(shader);
+    drawStretchSprings(shader);
+//    drawSmoothCurve(shader);
 //    drawLocalFrame(shader);
 //    drawTargetVector(shader);
     break;
@@ -252,26 +252,26 @@ void ClothSimulator::drawSmoothCurve(GLShader &shader) {
     Vector3D smoothed_pb = s.pm_b->smoothed_position;
 
 
-    smoothed_positions.col(0) << smoothed_pa.x+0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
-    smoothed_positions.col(1) << smoothed_pa.x, smoothed_pa.y+0.1, smoothed_pa.z + 0.05;
-    smoothed_positions.col(2) << smoothed_pa.x-0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
-
+//    smoothed_positions.col(0) << smoothed_pa.x+0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
+//    smoothed_positions.col(1) << smoothed_pa.x, smoothed_pa.y+0.1, smoothed_pa.z + 0.05;
+//    smoothed_positions.col(2) << smoothed_pa.x-0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
+//
     smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
     smooth_curve.col(si+1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
-
-    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
-    shader.uploadAttrib("in_position", smoothed_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
-
-    if (i == num_springs - 1) {
-      smoothed_positions.col(0) << smoothed_pb.x + 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
-      smoothed_positions.col(1) << smoothed_pb.x, smoothed_pb.y + 0.1, smoothed_pb.z + 0.05;
-      smoothed_positions.col(2) << smoothed_pb.x - 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
-
-      shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
-      shader.uploadAttrib("in_position", smoothed_positions);
-      shader.drawArray(GL_TRIANGLES, 0, 3);
-    }
+//
+//    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+//    shader.uploadAttrib("in_position", smoothed_positions);
+//    shader.drawArray(GL_TRIANGLES, 0, 3);
+//
+//    if (i == num_springs - 1) {
+//      smoothed_positions.col(0) << smoothed_pb.x + 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
+//      smoothed_positions.col(1) << smoothed_pb.x, smoothed_pb.y + 0.1, smoothed_pb.z + 0.05;
+//      smoothed_positions.col(2) << smoothed_pb.x - 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
+//
+//      shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+//      shader.uploadAttrib("in_position", smoothed_positions);
+//      shader.drawArray(GL_TRIANGLES, 0, 3);
+//    }
 
     si += 2;
   }
@@ -296,7 +296,7 @@ void ClothSimulator::drawLocalFrame(GLShader &shader) {
   for (int i = 0; i < num_particles; i++) {
     PointMass pm = hair->point_masses[i];
 
-    Vector3D smoothed_pm = pm.smoothed_position;
+    Vector3D smoothed_pm = pm.rest_bend_smoothed_position;
 
     Vector3D frame_1 = pm.frame_1;
     Vector3D frame_2 = pm.frame_2;
@@ -350,12 +350,12 @@ void ClothSimulator::drawTargetVector(GLShader &shader) {
     Vector3D pm_pos = pm.position;
     Vector3D target = pm.bend_target_pos;
 
-    target_positions.col(0) << target.x + 0.1, target.y, target.z+0.1;
-    target_positions.col(1) << target.x, target.y + 0.1, target.z+0.1;
-    target_positions.col(2) << target.x - 0.1, target.y, target.z+0.1;
+    target_positions.col(0) << target.x + 0.1, target.y, target.z;
+    target_positions.col(1) << target.x, target.y + 0.1, target.z;
+    target_positions.col(2) << target.x - 0.1, target.y, target.z;
 
-    target_vector.col(si) << pm_pos.x, pm_pos.y, pm_pos.z+0.1;
-    target_vector.col(si + 1) << target.x, target.y, target.z+0.1;
+    target_vector.col(si) << pm_pos.x, pm_pos.y, pm_pos.z;
+    target_vector.col(si + 1) << target.x, target.y, target.z;
 
     shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 1.0f, 1.0f));
     shader.uploadAttrib("in_position", target_positions);
@@ -570,66 +570,75 @@ void ClothSimulator::initGUI(Screen *screen) {
 
   // Spring types
 
-//  new Label(window, "Spring types", "sans-bold");
-//
-//  {
-//    Button *b = new Button(window, "structural");
-//    b->setFlags(Button::ToggleButton);
-//    b->setPushed(cp->enable_structural_constraints);
-//    b->setFontSize(14);
-//    b->setChangeCallback(
-//        [this](bool state) { cp->enable_structural_constraints = state; });
-//
-//    b = new Button(window, "shearing");
-//    b->setFlags(Button::ToggleButton);
-//    b->setPushed(cp->enable_shearing_constraints);
-//    b->setFontSize(14);
-//    b->setChangeCallback(
-//        [this](bool state) { cp->enable_shearing_constraints = state; });
-//
-//    b = new Button(window, "bending");
-//    b->setFlags(Button::ToggleButton);
-//    b->setPushed(cp->enable_bending_constraints);
-//    b->setFontSize(14);
-//    b->setChangeCallback(
-//        [this](bool state) { cp->enable_bending_constraints = state; });
-//  }
+  new Label(window, "Spring types", "sans-bold");
 
-  // Mass-spring parameters
+  {
+    Button *b = new Button(window, "stretch");
+    b->setFlags(Button::ToggleButton);
+    b->setPushed(hair->enable_stretch_constraints);
+    b->setFontSize(14);
+    b->setChangeCallback(
+        [this](bool state) { hair->enable_stretch_constraints = state; });
 
-//  new Label(window, "Parameters", "sans-bold");
-//
-//  {
-//    Widget *panel = new Widget(window);
-//    GridLayout *layout =
-//        new GridLayout(Orientation::Horizontal, 2, Alignment::Middle, 5, 5);
-//    layout->setColAlignment({Alignment::Maximum, Alignment::Fill});
-//    layout->setSpacing(0, 10);
-//    panel->setLayout(layout);
-//
-//    new Label(panel, "density :", "sans-bold");
-//
-//    FloatBox<double> *fb = new FloatBox<double>(panel);
-//    fb->setEditable(true);
-//    fb->setFixedSize(Vector2i(100, 20));
-//    fb->setFontSize(14);
-//    fb->setValue(cp->density / 10);
-//    fb->setUnits("g/cm^2");
-//    fb->setSpinnable(true);
-//    fb->setCallback([this](float value) { cp->density = (double)(value * 10); });
-//
-//    new Label(panel, "ks :", "sans-bold");
-//
-//    fb = new FloatBox<double>(panel);
-//    fb->setEditable(true);
-//    fb->setFixedSize(Vector2i(100, 20));
-//    fb->setFontSize(14);
-//    fb->setValue(cp->ks);
+    b = new Button(window, "bending");
+    b->setFlags(Button::ToggleButton);
+    b->setPushed(hair->enable_bending_constraints);
+    b->setFontSize(14);
+    b->setChangeCallback(
+        [this](bool state) { hair->enable_bending_constraints = state; });
+
+    b = new Button(window, "core");
+    b->setFlags(Button::ToggleButton);
+    b->setPushed(hair->enable_core_constraints);
+    b->setFontSize(14);
+    b->setChangeCallback(
+        [this](bool state) { hair->enable_core_constraints = state; });
+  }
+
+  // Mass-spring, smoothing constants parameters
+
+  new Label(window, "Parameters", "sans-bold");
+
+  {
+    Widget *panel = new Widget(window);
+    GridLayout *layout =
+        new GridLayout(Orientation::Horizontal, 2, Alignment::Middle, 5, 5);
+    layout->setColAlignment({Alignment::Maximum, Alignment::Fill});
+    layout->setSpacing(0, 10);
+    panel->setLayout(layout);
+
+    new Label(panel, "density :", "sans-bold");
+    FloatBox<double> *fb = new FloatBox<double>(panel);
+    fb->setEditable(true);
+    fb->setFixedSize(Vector2i(100, 20));
+    fb->setFontSize(14);
+    fb->setValue(hair->density / 10);
+    fb->setUnits("g/cm^2");
+    fb->setSpinnable(true);
+    fb->setCallback([this](float value) { hair->density = (double)(value * 10); });
+
+    new Label(panel, "ab :", "sans-bold");
+    fb = new FloatBox<double>(panel);
+    fb->setEditable(true);
+    fb->setFixedSize(Vector2i(100, 20));
+    fb->setFontSize(14);
+    fb->setValue(hair->ab);
 //    fb->setUnits("N/m");
-//    fb->setSpinnable(true);
-//    fb->setMinValue(0);
-//    fb->setCallback([this](float value) { cp->ks = value; });
-//  }
+    fb->setSpinnable(true);
+    fb->setMinValue(0);
+    fb->setCallback([this](float value) { hair->ab = value; });
+
+    new Label(panel, "ac :", "sans-bold");
+    fb = new FloatBox<double>(panel);
+    fb->setEditable(true);
+    fb->setFixedSize(Vector2i(100, 20));
+    fb->setFontSize(14);
+    fb->setValue(hair->ac);
+//    fb->setUnits("N/m");
+    fb->setSpinnable(true);
+    fb->setMinValue(0);
+    fb->setCallback([this](float value) { hair->ac = value; });
+  }
 
   // Simulation constants
 
@@ -665,97 +674,203 @@ void ClothSimulator::initGUI(Screen *screen) {
     num_steps->setCallback([this](int value) { simulation_steps = value; });
   }
 
-  // Damping slider and textbox
-
-//  new Label(window, "Damping", "sans-bold");
-//
-//  {
-//    Widget *panel = new Widget(window);
-//    panel->setLayout(
-//        new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
-//
-//    Slider *slider = new Slider(panel);
-//    slider->setValue(cp->damping);
-//    slider->setFixedWidth(105);
-//
-//    TextBox *percentage = new TextBox(panel);
-//    percentage->setFixedWidth(75);
-//    percentage->setValue(to_string(cp->damping));
-//    percentage->setUnits("%");
-//    percentage->setFontSize(14);
-//
-//    slider->setCallback([percentage](float value) {
-//      percentage->setValue(std::to_string(value));
-//    });
-//    slider->setFinalCallback([&](float value) {
-//      cp->damping = (double)value;
-//      // cout << "Final slider value: " << (int)(value * 100) << endl;
-//    });
-//  }
-
-  // Gravity
-
-  new Label(window, "Gravity", "sans-bold");
-
+  // Damping & spring constants slider and textbox
+  new Label(window, "ks", "sans-bold");
   {
     Widget *panel = new Widget(window);
-    GridLayout *layout =
-        new GridLayout(Orientation::Horizontal, 2, Alignment::Middle, 5, 5);
-    layout->setColAlignment({Alignment::Maximum, Alignment::Fill});
-    layout->setSpacing(0, 10);
-    panel->setLayout(layout);
+    panel->setLayout(
+        new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
-    new Label(panel, "x :", "sans-bold");
+    Slider *slider = new Slider(panel);
+    slider->setValue(hair->ks);
+    slider->setFixedWidth(105);
 
-    FloatBox<double> *fb = new FloatBox<double>(panel);
-    fb->setEditable(true);
-    fb->setFixedSize(Vector2i(100, 20));
-    fb->setFontSize(14);
-    fb->setValue(gravity.x);
-    fb->setUnits("m/s^2");
-    fb->setSpinnable(true);
-    fb->setCallback([this](float value) { gravity.x = value; });
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string((hair->ks/5000000.0) - 1.0));
+//    percentage->setUnits("%");
+    percentage->setFontSize(14);
 
-    new Label(panel, "y :", "sans-bold");
-
-    fb = new FloatBox<double>(panel);
-    fb->setEditable(true);
-    fb->setFixedSize(Vector2i(100, 20));
-    fb->setFontSize(14);
-    fb->setValue(gravity.y);
-    fb->setUnits("m/s^2");
-    fb->setSpinnable(true);
-    fb->setCallback([this](float value) { gravity.y = value; });
-
-    new Label(panel, "z :", "sans-bold");
-
-    fb = new FloatBox<double>(panel);
-    fb->setEditable(true);
-    fb->setFixedSize(Vector2i(100, 20));
-    fb->setFontSize(14);
-    fb->setValue(gravity.z);
-    fb->setUnits("m/s^2");
-    fb->setSpinnable(true);
-    fb->setCallback([this](float value) { gravity.z = value; });
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+      hair->ks = ((value + 1.0) * 5000000.0);
+//       cout << "Final slider value: " << hair->ks << endl;
+    });
   }
+
+  new Label(window, "cs", "sans-bold");
+  {
+    Widget *panel = new Widget(window);
+    panel->setLayout(
+            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+
+    Slider *slider = new Slider(panel);
+    slider->setValue(hair->cs);
+    slider->setFixedWidth(105);
+
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string((hair->cs/4472) - 1.0));
+    percentage->setUnits("%");
+    percentage->setFontSize(14);
+
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+        hair->cs = (value * 271) + 4472;
+//       cout << "Final slider value: " << hair->cs << endl;
+    });
+  }
+
+  new Label(window, "kb", "sans-bold");
+  {
+    Widget *panel = new Widget(window);
+    panel->setLayout(
+            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+
+    Slider *slider = new Slider(panel);
+    slider->setValue(hair->kb);
+    slider->setFixedWidth(105);
+
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string((hair->kb - 100.0) / 71900.0));
+    percentage->setUnits("%");
+    percentage->setFontSize(14);
+
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+        hair->kb = (value * 71900.0) + 100.0;
+//        cout << "Final slider value: " << hair->kb << endl;
+    });
+  }
+
+  new Label(window, "cb", "sans-bold");
+  {
+    Widget *panel = new Widget(window);
+    panel->setLayout(
+            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+
+    Slider *slider = new Slider(panel);
+    slider->setValue(hair->cb);
+    slider->setFixedWidth(105);
+
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string((hair->cb - 40.0) / 2455.0));
+    percentage->setUnits("%");
+    percentage->setFontSize(14);
+
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+        hair->cb = (value * 2455.0) + 40.0;
+//        cout << "Final slider value: " << hair->cb << endl;
+    });
+  }
+
+  new Label(window, "kc", "sans-bold");
+  {
+    Widget *panel = new Widget(window);
+    panel->setLayout(
+            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+
+    Slider *slider = new Slider(panel);
+    slider->setValue(hair->kc);
+    slider->setFixedWidth(105);
+
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string((hair->kc - 15000.0) / 585000.0));
+    percentage->setUnits("%");
+    percentage->setFontSize(14);
+
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+        hair->kc = (value * 585000.0) + 15000.0;
+//        cout << "Final slider value: " << hair->kc << endl;
+    });
+
+    new Label(window, "cc", "sans-bold");
+    {
+      Widget *panel = new Widget(window);
+      panel->setLayout(
+              new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+
+      Slider *slider = new Slider(panel);
+      slider->setValue(hair->cc);
+      slider->setFixedWidth(105);
+
+      TextBox *percentage = new TextBox(panel);
+      percentage->setFixedWidth(75);
+      percentage->setValue(to_string((hair->cc - 100.0) / 9900.0));
+      percentage->setUnits("%");
+      percentage->setFontSize(14);
+
+      slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+      slider->setFinalCallback([&](float value) {
+          hair->cc = (value * 9900.0) + 100.0;
+//          cout << "Final slider value: " << hair->cc << endl;
+      });
+    }
+  }
+
+  // Gravity
+//  new Label(window, "Gravity", "sans-bold");
+//  {
+//    Widget *panel = new Widget(window);
+//    GridLayout *layout =
+//        new GridLayout(Orientation::Horizontal, 2, Alignment::Middle, 5, 5);
+//    layout->setColAlignment({Alignment::Maximum, Alignment::Fill});
+//    layout->setSpacing(0, 10);
+//    panel->setLayout(layout);
+//
+//    new Label(panel, "x :", "sans-bold");
+//    FloatBox<double> *fb = new FloatBox<double>(panel);
+//    fb->setEditable(true);
+//    fb->setFixedSize(Vector2i(100, 20));
+//    fb->setFontSize(14);
+//    fb->setValue(gravity.x);
+//    fb->setUnits("m/s^2");
+//    fb->setSpinnable(true);
+//    fb->setCallback([this](float value) { gravity.x = value; });
+//
+//    new Label(panel, "y :", "sans-bold");
+//    fb = new FloatBox<double>(panel);
+//    fb->setEditable(true);
+//    fb->setFixedSize(Vector2i(100, 20));
+//    fb->setFontSize(14);
+//    fb->setValue(gravity.y);
+//    fb->setUnits("m/s^2");
+//    fb->setSpinnable(true);
+//    fb->setCallback([this](float value) { gravity.y = value; });
+//
+//    new Label(panel, "z :", "sans-bold");
+//    fb = new FloatBox<double>(panel);
+//    fb->setEditable(true);
+//    fb->setFixedSize(Vector2i(100, 20));
+//    fb->setFontSize(14);
+//    fb->setValue(gravity.z);
+//    fb->setUnits("m/s^2");
+//    fb->setSpinnable(true);
+//    fb->setCallback([this](float value) { gravity.z = value; });
+//  }
 
   // Appearance
 
-  new Label(window, "Appearance", "sans-bold");
-
-  {
-    ComboBox *cb = new ComboBox(window, {"Wireframe", "Normals", "Shaded"});
-    cb->setFontSize(14);
-    cb->setCallback(
-        [this, screen](int idx) { activeShader = static_cast<e_shader>(idx); });
-  }
-
-  new Label(window, "Color", "sans-bold");
-
-  {
-    ColorWheel *cw = new ColorWheel(window, color);
-    cw->setCallback(
-        [this](const nanogui::Color &color) { this->color = color; });
-  }
+//  new Label(window, "Appearance", "sans-bold");
+//
+//  {
+//    ComboBox *cb = new ComboBox(window, {"Wireframe", "Normals", "Shaded"});
+//    cb->setFontSize(14);
+//    cb->setCallback(
+//        [this, screen](int idx) { activeShader = static_cast<e_shader>(idx); });
+//  }
+//
+//  new Label(window, "Color", "sans-bold");
+//
+//  {
+//    ColorWheel *cw = new ColorWheel(window, color);
+//    cw->setCallback(
+//        [this](const nanogui::Color &color) { this->color = color; });
+//  }
 }
 
