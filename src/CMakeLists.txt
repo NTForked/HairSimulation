@@ -20,7 +20,7 @@ set(CLOTHSIM_VIEWER_SOURCE
 
     # Camera
     camera.cpp
-        hair.h hair.cpp)
+        hair.h hair.cpp HairVector.h HairVector.cpp)
 
 #-------------------------------------------------------------------------------
 # Embed resources

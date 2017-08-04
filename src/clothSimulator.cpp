@@ -41,7 +41,7 @@ ClothSimulator::~ClothSimulator() {
 }
 
 
-void ClothSimulator::loadHair(Hair* hair) { this->hair = hair; }
+void ClothSimulator::loadHair(HairVector *hairs) { this->hairs = hairs; }
 
 /**
  * Initializes the cloth simulation and spawns a new thread to separate
@@ -64,14 +64,21 @@ void ClothSimulator::init() {
 
   Vector3D avg_pm_position(0, 0, 0);
 
-  for (auto &pm : hair->point_masses) {
-    avg_pm_position += pm.position / hair->point_masses.size();
+  for (Hair *hair : *(hairs->hair_vector)) {
+    for (auto &pm : hair->point_masses) {
+      avg_pm_position += pm.position / hair->point_masses.size();
+    }
   }
 
-  CGL::Vector3D target(avg_pm_position.x, avg_pm_position.y / 2,
-                       avg_pm_position.z);
+  avg_pm_position /= (double) hairs->hair_vector->size();
+  CGL::Vector3D target(avg_pm_position.x, avg_pm_position.y / 2, avg_pm_position.z);
   CGL::Vector3D c_dir(0., 0., 0.);
-  canonical_view_distance = max(hair->length, hair->length) * 0.9;
+
+  Hair* hair = (*(hairs->hair_vector))[0];
+  canonical_view_distance = hair->length * 0.9;
+//  for (Hair *hair : *(hairs->hair_vector)) {
+//    canonical_view_distance = max(canonical_view_distance, hair->length);
+//  }
   scroll_rate = canonical_view_distance / 10;
 
   view_distance = canonical_view_distance * 2;
@@ -100,18 +107,21 @@ void ClothSimulator::drawContents() {
   if (!is_paused) {
     vector<Vector3D> external_accelerations = {gravity};
 
-    double change_pos = 2.0 / simulation_steps;
+    double change_pos = 100.0 / simulation_steps;
     if (left_pressed || down_pressed) {
       change_pos *= -1.0;
     }
 
-    for (int i = 0; i < simulation_steps; i++) {
+    for (Hair* hair : *(hairs->hair_vector)) {
       if (left_pressed || right_pressed) {
         hair->point_masses[0].position.x += change_pos;
       } else if (up_pressed || down_pressed) {
         hair->point_masses[0].position.y += change_pos;
       }
-      hair->simulate(frames_per_sec, simulation_steps, external_accelerations);
+    }
+
+    for (int i = 0; i < simulation_steps; i++) {
+      hairs->simulate(frames_per_sec, simulation_steps, external_accelerations);
     }
 
     left_pressed = false;
@@ -140,9 +150,10 @@ void ClothSimulator::drawContents() {
 
   switch (activeShader) {
   case WIREFRAME:
-    drawRestPose(shader);
-    drawStretchSprings(shader);
-//    drawSmoothCurve(shader);
+//    drawRestPose(shader);
+//    drawStretchSprings(shader);
+//    drawSupportSprings(shader);
+    drawSmoothCurve(shader);
 //    drawLocalFrame(shader);
 //    drawTargetVector(shader);
     break;
@@ -150,114 +161,173 @@ void ClothSimulator::drawContents() {
 }
 
 void ClothSimulator::drawRestPose(GLShader &shader) {
-  int num_springs = hair->particles_count - 1;
-  int num_particles = hair->particles_count;
+  int total_springs = 0;
+  int total_particles = 0;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    total_springs += hair->particles_count - 1;
+    total_particles += hair->particles_count;
+  }
 
   MatrixXf particle_positions(3, 3);
-  MatrixXf rest_springs(3, num_springs * 2);
+  MatrixXf rest_springs(3, total_springs * 2);
 
   int si = 0;
   // Draw springs as lines
-  for (int i = 0; i < num_springs; i++) {
-    Spring s = hair->springs[i];
+  for (Hair* hair : *(hairs->hair_vector)) {
+    for (int i = 0; i < hair->springs.size(); i++) {
+      Spring s = hair->springs[i];
 
-    Vector3D pa = s.pm_a->start_position;
-    Vector3D pb = s.pm_b->start_position;
+      Vector3D pa = s.pm_a->start_position;
+      Vector3D pb = s.pm_b->start_position;
 
-    particle_positions.col(0) << pa.x+0.1, pa.y, pa.z;
-    particle_positions.col(1) << pa.x, pa.y+0.1, pa.z;
-    particle_positions.col(2) << pa.x-0.1, pa.y, pa.z;
+      particle_positions.col(0) << pa.x+0.1, pa.y, pa.z;
+      particle_positions.col(1) << pa.x, pa.y+0.1, pa.z;
+      particle_positions.col(2) << pa.x-0.1, pa.y, pa.z;
 
-    rest_springs.col(si) << pa.x, pa.y, pa.z;
-    rest_springs.col(si + 1) << pb.x, pb.y, pb.z;
-
-    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 1.0f, 1.0f));
-    shader.uploadAttrib("in_position", particle_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
-
-    if (i == num_springs - 1) {
-      particle_positions.col(0) << pb.x+0.1, pb.y, pb.z;
-      particle_positions.col(1) << pb.x, pb.y+0.1, pb.z;
-      particle_positions.col(2) << pb.x-0.1, pb.y, pb.z;
+      rest_springs.col(si) << pa.x, pa.y, pa.z;
+      rest_springs.col(si + 1) << pb.x, pb.y, pb.z;
 
       shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 1.0f, 1.0f));
       shader.uploadAttrib("in_position", particle_positions);
       shader.drawArray(GL_TRIANGLES, 0, 3);
-    }
 
-    si += 2;
+      if (i == hair->springs.size() - 1) {
+        particle_positions.col(0) << pb.x+0.1, pb.y, pb.z;
+        particle_positions.col(1) << pb.x, pb.y+0.1, pb.z;
+        particle_positions.col(2) << pb.x-0.1, pb.y, pb.z;
+
+        shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 1.0f, 1.0f));
+        shader.uploadAttrib("in_position", particle_positions);
+        shader.drawArray(GL_TRIANGLES, 0, 3);
+      }
+
+      si += 2;
+    }
   }
 
   shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 1.0f, 1.0f));
   shader.uploadAttrib("in_position", rest_springs);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
+  shader.drawArray(GL_LINES, 0, total_springs * 2);
 }
 
 void ClothSimulator::drawStretchSprings(GLShader &shader) {
-  int num_springs = hair->particles_count - 1;
-  int num_particles = hair->particles_count;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    int num_springs = hair->particles_count - 1;
+    int num_particles = hair->particles_count;
 
-  MatrixXf particle_positions(3, 3);
-  MatrixXf stretch_springs(3, num_springs * 2);
+    MatrixXf particle_positions(3, 3);
+    MatrixXf stretch_springs(3, num_springs * 2);
 
-  int si = 0;
-  // Draw springs as lines
-  for (int i = 0; i < num_springs; i++) {
-    Spring s = hair->springs[i];
+    int si = 0;
+    // Draw springs as lines
+    for (int i = 0; i < num_springs; i++) {
+      Spring s = hair->springs[i];
 
-    Vector3D pa = s.pm_a->position;
-    Vector3D pb = s.pm_b->position;
+      Vector3D pa = s.pm_a->position;
+      Vector3D pb = s.pm_b->position;
 
-    particle_positions.col(0) << pa.x+0.1, pa.y, pa.z;
-    particle_positions.col(1) << pa.x, pa.y+0.1, pa.z;
-    particle_positions.col(2) << pa.x-0.1, pa.y, pa.z;
+      particle_positions.col(0) << pa.x + 0.1, pa.y, pa.z;
+      particle_positions.col(1) << pa.x, pa.y + 0.1, pa.z;
+      particle_positions.col(2) << pa.x - 0.1, pa.y, pa.z;
 
-    stretch_springs.col(si) << pa.x, pa.y, pa.z;
-    stretch_springs.col(si + 1) << pb.x, pb.y, pb.z;
-
-    shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
-    shader.uploadAttrib("in_position", particle_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
-
-    if (i == num_springs - 1) {
-      particle_positions.col(0) << pb.x+0.1, pb.y, pb.z;
-      particle_positions.col(1) << pb.x, pb.y+0.1, pb.z;
-      particle_positions.col(2) << pb.x-0.1, pb.y, pb.z;
+      stretch_springs.col(si) << pa.x, pa.y, pa.z;
+      stretch_springs.col(si + 1) << pb.x, pb.y, pb.z;
 
       shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
       shader.uploadAttrib("in_position", particle_positions);
       shader.drawArray(GL_TRIANGLES, 0, 3);
+
+      if (i == num_springs - 1) {
+        particle_positions.col(0) << pb.x + 0.1, pb.y, pb.z;
+        particle_positions.col(1) << pb.x, pb.y + 0.1, pb.z;
+        particle_positions.col(2) << pb.x - 0.1, pb.y, pb.z;
+
+        shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
+        shader.uploadAttrib("in_position", particle_positions);
+        shader.drawArray(GL_TRIANGLES, 0, 3);
+      }
+
+      si += 2;
     }
 
-    si += 2;
+    shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
+    shader.uploadAttrib("in_position", stretch_springs);
+    shader.drawArray(GL_LINES, 0, num_springs * 2);
   }
+}
 
-  shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
-  shader.uploadAttrib("in_position", stretch_springs);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
+void ClothSimulator::drawSupportSprings(GLShader &shader) {
+  for (Hair* hair : *(hairs->hair_vector)) {
+    int num_springs = hair->support_springs.size();
+
+    MatrixXf particle_positions(3, 3);
+    MatrixXf support_springs(3, num_springs * 2);
+
+    int si = 0;
+    // Draw springs as lines
+    for (int i = 0; i < num_springs; i++) {
+      Spring s = hair->support_springs[i];
+
+      Vector3D pa = s.pm_a->position;
+      Vector3D pb = s.pm_b->position;
+
+      particle_positions.col(0) << pa.x + 0.1, pa.y, pa.z;
+      particle_positions.col(1) << pa.x, pa.y + 0.1, pa.z;
+      particle_positions.col(2) << pa.x - 0.1, pa.y, pa.z;
+
+      support_springs.col(si) << pa.x, pa.y, pa.z;
+      support_springs.col(si + 1) << pb.x, pb.y, pb.z;
+
+      shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+      shader.uploadAttrib("in_position", particle_positions);
+      shader.drawArray(GL_TRIANGLES, 0, 3);
+
+      if (i == num_springs - 1) {
+        particle_positions.col(0) << pb.x + 0.1, pb.y, pb.z;
+        particle_positions.col(1) << pb.x, pb.y + 0.1, pb.z;
+        particle_positions.col(2) << pb.x - 0.1, pb.y, pb.z;
+
+        shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+        shader.uploadAttrib("in_position", particle_positions);
+        shader.drawArray(GL_TRIANGLES, 0, 3);
+      }
+
+      si += 2;
+    }
+
+    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+    shader.uploadAttrib("in_position", support_springs);
+    shader.drawArray(GL_LINES, 0, num_springs * 2);
+  }
 }
 
 void ClothSimulator::drawSmoothCurve(GLShader &shader) {
-  int num_springs = hair->particles_count - 1;
+  int total_springs = 0;
+  int total_particles = 0;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    total_springs += hair->particles_count - 1;
+    total_particles += hair->particles_count;
+  }
 
   MatrixXf smoothed_positions(3, 3);
-  MatrixXf smooth_curve(3, num_springs * 2);
+  MatrixXf smooth_curve(3, total_springs * 2);
 
   int si = 0;
   // Draw springs as lines
-  for (int i = 0; i < num_springs; i++) {
-    Spring s = hair->springs[i];
+  for (Hair* hair : *(hairs->hair_vector)) {
+    for (int i = 0; i < hair->springs.size(); i++) {
+      Spring s = hair->springs[i];
 
-    Vector3D smoothed_pa = s.pm_a->smoothed_position;
-    Vector3D smoothed_pb = s.pm_b->smoothed_position;
+      Vector3D smoothed_pa = s.pm_a->smoothed_position;
+      Vector3D smoothed_pb = s.pm_b->smoothed_position;
 
 
 //    smoothed_positions.col(0) << smoothed_pa.x+0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
 //    smoothed_positions.col(1) << smoothed_pa.x, smoothed_pa.y+0.1, smoothed_pa.z + 0.05;
 //    smoothed_positions.col(2) << smoothed_pa.x-0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
 //
-    smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
-    smooth_curve.col(si+1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
+      smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
+      smooth_curve.col(si + 1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
 //
 //    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
 //    shader.uploadAttrib("in_position", smoothed_positions);
@@ -273,100 +343,105 @@ void ClothSimulator::drawSmoothCurve(GLShader &shader) {
 //      shader.drawArray(GL_TRIANGLES, 0, 3);
 //    }
 
-    si += 2;
+      si += 2;
+    }
   }
 
-  shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
+  shader.setUniform("in_color", nanogui::Color(0.698f, 0.133f, 0.133f, 1.0f));
   shader.uploadAttrib("in_position", smooth_curve);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
+  shader.drawArray(GL_LINES, 0, total_springs * 2);
 }
 
 void ClothSimulator::drawLocalFrame(GLShader &shader) {
-  int num_springs = hair->particles_count - 1;
-  int num_particles = hair->particles_count;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    int num_springs = hair->particles_count - 1;
+    int num_particles = hair->particles_count;
 
-  MatrixXf frame_1_positions(3, 3);
-  MatrixXf frame_2_positions(3, 3);
+    MatrixXf frame_1_positions(3, 3);
+    MatrixXf frame_2_positions(3, 3);
 
-  MatrixXf frame_1_vector(3, num_particles * 2);
-  MatrixXf frame_2_vector(3, num_particles * 2);
+    MatrixXf frame_1_vector(3, num_particles * 2);
+    MatrixXf frame_2_vector(3, num_particles * 2);
 
-  int si = 0;
-  // Draw springs as lines
-  for (int i = 0; i < num_particles; i++) {
-    PointMass pm = hair->point_masses[i];
+    int si = 0;
+    // Draw springs as lines
+    for (int i = 0; i < num_particles; i++) {
+      PointMass pm = hair->point_masses[i];
 
-    Vector3D smoothed_pm = pm.rest_bend_smoothed_position;
+      Vector3D smoothed_pm = pm.smoothed_position;
 
-    Vector3D frame_1 = pm.frame_1;
-    Vector3D frame_2 = pm.frame_2;
+      Vector3D frame_1 = pm.frame_1;
+      Vector3D frame_2 = pm.frame_2;
 
-    frame_1_positions.col(0) << frame_1.x + 0.1, frame_1.y, frame_1.z;
-    frame_1_positions.col(1) << frame_1.x, frame_1.y + 0.1, frame_1.z;
-    frame_1_positions.col(2) << frame_1.x - 0.1, frame_1.y, frame_1.z;
+      frame_1_positions.col(0) << frame_1.x + 0.1, frame_1.y, frame_1.z;
+      frame_1_positions.col(1) << frame_1.x, frame_1.y + 0.1, frame_1.z;
+      frame_1_positions.col(2) << frame_1.x - 0.1, frame_1.y, frame_1.z;
 
-    frame_2_positions.col(0) << frame_2.x + 0.1, frame_2.y, frame_2.z;
-    frame_2_positions.col(1) << frame_2.x, frame_2.y + 0.1, frame_2.z;
-    frame_2_positions.col(2) << frame_2.x - 0.1, frame_2.y, frame_2.z;
+      frame_2_positions.col(0) << frame_2.x + 0.1, frame_2.y, frame_2.z;
+      frame_2_positions.col(1) << frame_2.x, frame_2.y + 0.1, frame_2.z;
+      frame_2_positions.col(2) << frame_2.x - 0.1, frame_2.y, frame_2.z;
 
-    frame_1_vector.col(si) << smoothed_pm.x, smoothed_pm.y, smoothed_pm.z;
-    frame_1_vector.col(si + 1) << frame_1.x, frame_1.y, frame_1.z;
+      frame_1_vector.col(si) << smoothed_pm.x, smoothed_pm.y, smoothed_pm.z;
+      frame_1_vector.col(si + 1) << frame_1.x, frame_1.y, frame_1.z;
 
-    frame_2_vector.col(si) << smoothed_pm.x, smoothed_pm.y, smoothed_pm.z;
-    frame_2_vector.col(si + 1) << frame_2.x, frame_2.y, frame_2.z;
+      frame_2_vector.col(si) << smoothed_pm.x, smoothed_pm.y, smoothed_pm.z;
+      frame_2_vector.col(si + 1) << frame_2.x, frame_2.y, frame_2.z;
+
+      shader.setUniform("in_color", nanogui::Color(0.0f, 1.0f, 0.0f, 1.0f));
+      shader.uploadAttrib("in_position", frame_1_positions);
+      shader.drawArray(GL_TRIANGLES, 0, 3);
+
+      shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 0.0f, 1.0f));
+      shader.uploadAttrib("in_position", frame_2_positions);
+      shader.drawArray(GL_TRIANGLES, 0, 3);
+
+      si += 2;
+    }
 
     shader.setUniform("in_color", nanogui::Color(0.0f, 1.0f, 0.0f, 1.0f));
-    shader.uploadAttrib("in_position", frame_1_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
+    shader.uploadAttrib("in_position", frame_1_vector);
+    shader.drawArray(GL_LINES, 0, num_springs * 2);
 
     shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 0.0f, 1.0f));
-    shader.uploadAttrib("in_position", frame_2_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
-
-    si += 2;
+    shader.uploadAttrib("in_position", frame_2_vector);
+    shader.drawArray(GL_LINES, 0, num_springs * 2);
   }
-
-  shader.setUniform("in_color", nanogui::Color(0.0f, 1.0f, 0.0f, 1.0f));
-  shader.uploadAttrib("in_position", frame_1_vector);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
-
-  shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 0.0f, 1.0f));
-  shader.uploadAttrib("in_position", frame_2_vector);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
 }
 
 void ClothSimulator::drawTargetVector(GLShader &shader) {
-  int num_springs = hair->particles_count - 1;
-  int num_particles = hair->particles_count;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    int num_springs = hair->particles_count - 1;
+    int num_particles = hair->point_masses.size();
 
-  MatrixXf target_positions(3, 3);
-  MatrixXf target_vector(3, num_particles * 2);
+    MatrixXf target_positions(3, 3);
+    MatrixXf target_vector(3, num_particles * 2);
 
-  int si = 0;
-  // Draw springs as lines
-  for (int i = 0; i < num_particles; i++) {
-    PointMass pm = hair->point_masses[i];
+    int si = 0;
+    // Draw springs as lines
+    for (int i = 0; i < num_particles; i++) {
+      PointMass pm = hair->point_masses[i];
 
-    Vector3D pm_pos = pm.position;
-    Vector3D target = pm.bend_target_pos;
+      Vector3D pm_pos = pm.position;
+      Vector3D target = pm.bend_target_pos;
 
-    target_positions.col(0) << target.x + 0.1, target.y, target.z;
-    target_positions.col(1) << target.x, target.y + 0.1, target.z;
-    target_positions.col(2) << target.x - 0.1, target.y, target.z;
+      target_positions.col(0) << target.x + 0.1, target.y, target.z;
+      target_positions.col(1) << target.x, target.y + 0.1, target.z;
+      target_positions.col(2) << target.x - 0.1, target.y, target.z;
 
-    target_vector.col(si) << pm_pos.x, pm_pos.y, pm_pos.z;
-    target_vector.col(si + 1) << target.x, target.y, target.z;
+      target_vector.col(si) << pm_pos.x, pm_pos.y, pm_pos.z;
+      target_vector.col(si + 1) << target.x, target.y, target.z;
+
+      shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 1.0f, 1.0f));
+      shader.uploadAttrib("in_position", target_positions);
+      shader.drawArray(GL_TRIANGLES, 0, 3);
+
+      si += 2;
+    }
 
     shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 1.0f, 1.0f));
-    shader.uploadAttrib("in_position", target_positions);
-    shader.drawArray(GL_TRIANGLES, 0, 3);
-
-    si += 2;
+    shader.uploadAttrib("in_position", target_vector);
+    shader.drawArray(GL_LINES, 0, num_springs * 2);
   }
-
-  shader.setUniform("in_color", nanogui::Color(1.0f, 0.0f, 1.0f, 1.0f));
-  shader.uploadAttrib("in_position", target_vector);
-  shader.drawArray(GL_LINES, 0, num_springs * 2);
 }
 
 // ----------------------------------------------------------------------------
@@ -569,30 +644,36 @@ void ClothSimulator::initGUI(Screen *screen) {
   window->setLayout(new GroupLayout(15, 6, 14, 5));
 
   // Spring types
-
   new Label(window, "Spring types", "sans-bold");
 
   {
     Button *b = new Button(window, "stretch");
     b->setFlags(Button::ToggleButton);
-    b->setPushed(hair->enable_stretch_constraints);
+    b->setPushed(hairs->enable_stretch_constraints);
     b->setFontSize(14);
     b->setChangeCallback(
-        [this](bool state) { hair->enable_stretch_constraints = state; });
+        [this](bool state) { hairs->enable_stretch_constraints = state; });
+
+    b = new Button(window, "support");
+    b->setFlags(Button::ToggleButton);
+    b->setPushed(hairs->enable_support_constraints);
+    b->setFontSize(14);
+    b->setChangeCallback(
+            [this](bool state) { hairs->enable_support_constraints = state; });
 
     b = new Button(window, "bending");
     b->setFlags(Button::ToggleButton);
-    b->setPushed(hair->enable_bending_constraints);
+    b->setPushed(hairs->enable_bending_constraints);
     b->setFontSize(14);
     b->setChangeCallback(
-        [this](bool state) { hair->enable_bending_constraints = state; });
+        [this](bool state) { hairs->enable_bending_constraints = state; });
 
     b = new Button(window, "core");
     b->setFlags(Button::ToggleButton);
-    b->setPushed(hair->enable_core_constraints);
+    b->setPushed(hairs->enable_core_constraints);
     b->setFontSize(14);
     b->setChangeCallback(
-        [this](bool state) { hair->enable_core_constraints = state; });
+        [this](bool state) { hairs->enable_core_constraints = state; });
   }
 
   // Mass-spring, smoothing constants parameters
@@ -612,32 +693,32 @@ void ClothSimulator::initGUI(Screen *screen) {
     fb->setEditable(true);
     fb->setFixedSize(Vector2i(100, 20));
     fb->setFontSize(14);
-    fb->setValue(hair->density / 10);
+    fb->setValue(hairs->density / 10);
     fb->setUnits("g/cm^2");
     fb->setSpinnable(true);
-    fb->setCallback([this](float value) { hair->density = (double)(value * 10); });
+    fb->setCallback([this](float value) { hairs->density = (double)(value * 10); });
 
     new Label(panel, "ab :", "sans-bold");
     fb = new FloatBox<double>(panel);
     fb->setEditable(true);
     fb->setFixedSize(Vector2i(100, 20));
     fb->setFontSize(14);
-    fb->setValue(hair->ab);
+    fb->setValue(hairs->ab);
 //    fb->setUnits("N/m");
     fb->setSpinnable(true);
     fb->setMinValue(0);
-    fb->setCallback([this](float value) { hair->ab = value; });
+    fb->setCallback([this](float value) { hairs->ab = value; });
 
     new Label(panel, "ac :", "sans-bold");
     fb = new FloatBox<double>(panel);
     fb->setEditable(true);
     fb->setFixedSize(Vector2i(100, 20));
     fb->setFontSize(14);
-    fb->setValue(hair->ac);
+    fb->setValue(hairs->ac);
 //    fb->setUnits("N/m");
     fb->setSpinnable(true);
     fb->setMinValue(0);
-    fb->setCallback([this](float value) { hair->ac = value; });
+    fb->setCallback([this](float value) { hairs->ac = value; });
   }
 
   // Simulation constants
@@ -682,18 +763,18 @@ void ClothSimulator::initGUI(Screen *screen) {
         new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
     Slider *slider = new Slider(panel);
-    slider->setValue(hair->ks);
+    slider->setValue(hairs->ks);
     slider->setFixedWidth(105);
 
     TextBox *percentage = new TextBox(panel);
     percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hair->ks/5000000.0) - 1.0));
+    percentage->setValue(to_string((hairs->ks/5000000.0) - 1.0));
 //    percentage->setUnits("%");
     percentage->setFontSize(14);
 
     slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
     slider->setFinalCallback([&](float value) {
-      hair->ks = ((value + 1.0) * 5000000.0);
+      hairs->ks = ((value + 1.0) * 5000000.0);
 //       cout << "Final slider value: " << hair->ks << endl;
     });
   }
@@ -705,18 +786,18 @@ void ClothSimulator::initGUI(Screen *screen) {
             new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
     Slider *slider = new Slider(panel);
-    slider->setValue(hair->cs);
+    slider->setValue(hairs->cs);
     slider->setFixedWidth(105);
 
     TextBox *percentage = new TextBox(panel);
     percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hair->cs/4472) - 1.0));
+    percentage->setValue(to_string((hairs->cs - 4472) / 271.0));
     percentage->setUnits("%");
     percentage->setFontSize(14);
 
     slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
     slider->setFinalCallback([&](float value) {
-        hair->cs = (value * 271) + 4472;
+        hairs->cs = (value * 271) + 4472;
 //       cout << "Final slider value: " << hair->cs << endl;
     });
   }
@@ -728,18 +809,18 @@ void ClothSimulator::initGUI(Screen *screen) {
             new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
     Slider *slider = new Slider(panel);
-    slider->setValue(hair->kb);
+    slider->setValue(hairs->kb);
     slider->setFixedWidth(105);
 
     TextBox *percentage = new TextBox(panel);
     percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hair->kb - 100.0) / 71900.0));
+    percentage->setValue(to_string((hairs->kb - 100.0) / 71900.0));
     percentage->setUnits("%");
     percentage->setFontSize(14);
 
     slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
     slider->setFinalCallback([&](float value) {
-        hair->kb = (value * 71900.0) + 100.0;
+        hairs->kb = (value * 71900.0) + 100.0;
 //        cout << "Final slider value: " << hair->kb << endl;
     });
   }
@@ -751,18 +832,18 @@ void ClothSimulator::initGUI(Screen *screen) {
             new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
     Slider *slider = new Slider(panel);
-    slider->setValue(hair->cb);
+    slider->setValue(hairs->cb);
     slider->setFixedWidth(105);
 
     TextBox *percentage = new TextBox(panel);
     percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hair->cb - 40.0) / 2455.0));
+    percentage->setValue(to_string((hairs->cb - 40.0) / 2455.0));
     percentage->setUnits("%");
     percentage->setFontSize(14);
 
     slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
     slider->setFinalCallback([&](float value) {
-        hair->cb = (value * 2455.0) + 40.0;
+        hairs->cb = (value * 2455.0) + 40.0;
 //        cout << "Final slider value: " << hair->cb << endl;
     });
   }
@@ -774,18 +855,18 @@ void ClothSimulator::initGUI(Screen *screen) {
             new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
     Slider *slider = new Slider(panel);
-    slider->setValue(hair->kc);
+    slider->setValue(hairs->kc);
     slider->setFixedWidth(105);
 
     TextBox *percentage = new TextBox(panel);
     percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hair->kc - 15000.0) / 585000.0));
+    percentage->setValue(to_string((hairs->kc - 15000.0) / 585000.0));
     percentage->setUnits("%");
     percentage->setFontSize(14);
 
     slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
     slider->setFinalCallback([&](float value) {
-        hair->kc = (value * 585000.0) + 15000.0;
+        hairs->kc = (value * 585000.0) + 15000.0;
 //        cout << "Final slider value: " << hair->kc << endl;
     });
 
@@ -796,18 +877,18 @@ void ClothSimulator::initGUI(Screen *screen) {
               new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
       Slider *slider = new Slider(panel);
-      slider->setValue(hair->cc);
+      slider->setValue(hairs->cc);
       slider->setFixedWidth(105);
 
       TextBox *percentage = new TextBox(panel);
       percentage->setFixedWidth(75);
-      percentage->setValue(to_string((hair->cc - 100.0) / 9900.0));
+      percentage->setValue(to_string((hairs->cc - 100.0) / 9900.0));
       percentage->setUnits("%");
       percentage->setFontSize(14);
 
       slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
       slider->setFinalCallback([&](float value) {
-          hair->cc = (value * 9900.0) + 100.0;
+          hairs->cc = (value * 9900.0) + 100.0;
 //          cout << "Final slider value: " << hair->cc << endl;
       });
     }

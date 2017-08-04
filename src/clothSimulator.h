@@ -5,6 +5,7 @@
 
 #include "camera.h"
 #include "hair.h"
+#include "HairVector.h"
 
 using namespace nanogui;
 
@@ -15,7 +16,7 @@ public:
 
   void init();
 
-  void loadHair(Hair* hair);
+  void loadHair(HairVector *hair);
   virtual bool isAlive();
   virtual void drawContents();
 
@@ -32,6 +33,7 @@ private:
   virtual void initGUI(Screen *screen);
   void drawRestPose(GLShader &shader);
   void drawStretchSprings(GLShader &shader);
+  void drawSupportSprings(GLShader &shader);
   void drawSmoothCurve(GLShader &shader);
   void drawLocalFrame(GLShader &shader);
   void drawTargetVector(GLShader &shader);
@@ -50,9 +52,9 @@ private:
   CGL::Vector3D gravity = CGL::Vector3D(0, -9.8, 0);
   nanogui::Color color = nanogui::Color(1.0f, 0.0f, 0.0f, 1.0f);
 
-  vector<Hair *> *hairs;
+  HairVector *hairs;
 
-  Hair *hair;
+//  Hair *hair;
 
   // OpenGL attributes
 
