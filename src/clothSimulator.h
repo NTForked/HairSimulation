@@ -31,6 +31,7 @@ public:
 
 private:
   virtual void initGUI(Screen *screen);
+  void drawHead(GLShader &shader);
   void drawRestPose(GLShader &shader);
   void drawStretchSprings(GLShader &shader);
   void drawSupportSprings(GLShader &shader);

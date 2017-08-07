@@ -14,11 +14,10 @@ using namespace std;
 
 struct Hair {
 Hair() {}
-Hair(int particles_count, double length, float thickness)
-        : particles_count(particles_count), length(length), thickness(thickness) {}
+Hair(int particles_count, double length)
+        : particles_count(particles_count), length(length) {}
 ~Hair();
 
-void buildGrid();
 void externalForces(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations, double density);
 void stretchSpring(double frames_per_sec, double simulation_steps, double ks, double cs);
 void supportSpring(double frames_per_sec, double simulation_steps, double kb, double cb, double bend_constant);
@@ -28,13 +27,11 @@ void restBendSmoothingFunction(double ab);
 void restCoreSmoothingFunction(double ac);
 void positionSmoothingFunction(double bend_constant);
 void velocitySmoothingFunction(double frames_per_sec, double simulation_steps, double ac);
-void updatePositions(double frames_per_sec, double simulation_steps, double density);
+void updatePositions(double frames_per_sec, double simulation_steps, double density, double damping);
 
 int particles_count;
-float thickness;
 double length;
 double avg_spring_length;
-Vector3D offset;
 vector<Spring> springs;
 vector<Spring> support_springs;
 vector<PointMass> point_masses;

@@ -76,9 +76,6 @@ void ClothSimulator::init() {
 
   Hair* hair = (*(hairs->hair_vector))[0];
   canonical_view_distance = hair->length * 0.9;
-//  for (Hair *hair : *(hairs->hair_vector)) {
-//    canonical_view_distance = max(canonical_view_distance, hair->length);
-//  }
   scroll_rate = canonical_view_distance / 10;
 
   view_distance = canonical_view_distance * 2;
@@ -107,23 +104,24 @@ void ClothSimulator::drawContents() {
   if (!is_paused) {
     vector<Vector3D> external_accelerations = {gravity};
 
-    double change_pos = 100.0 / simulation_steps;
+    double change_pos = 1000.0;
     if (left_pressed || down_pressed) {
       change_pos *= -1.0;
     }
 
-    for (Hair* hair : *(hairs->hair_vector)) {
-      if (left_pressed || right_pressed) {
-        hair->point_masses[0].position.x += change_pos;
-      } else if (up_pressed || down_pressed) {
-        hair->point_masses[0].position.y += change_pos;
-      }
+    Vector3D accel;
+    if (left_pressed || right_pressed) {
+      accel = Vector3D(change_pos, 0, 0);
+    } else if (up_pressed || down_pressed) {
+      accel = Vector3D(0, change_pos, 0);
     }
+    external_accelerations.push_back(accel);
 
     for (int i = 0; i < simulation_steps; i++) {
       hairs->simulate(frames_per_sec, simulation_steps, external_accelerations);
     }
 
+    external_accelerations = {gravity};
     left_pressed = false;
     right_pressed = false;
     up_pressed = false;
@@ -150,6 +148,7 @@ void ClothSimulator::drawContents() {
 
   switch (activeShader) {
   case WIREFRAME:
+    drawHead(shader);
 //    drawRestPose(shader);
 //    drawStretchSprings(shader);
 //    drawSupportSprings(shader);
@@ -158,6 +157,42 @@ void ClothSimulator::drawContents() {
 //    drawTargetVector(shader);
     break;
   }
+}
+
+void ClothSimulator::drawHead(GLShader &shader) {
+  Vector3D center = Vector3D();
+
+  for (Hair* hair : *(hairs->hair_vector)) {
+    center += hair->point_masses[0].start_position;
+  }
+  center /= hairs->num_hairs;
+
+  int num_tris = 25;
+  double theta = 2.0 * PI / num_tris;
+  MatrixXf head(3, num_tris * 3);
+
+  int col_count = 0;
+  Vector3D p = center;
+  double s = 10.0;
+
+  double next_x, next_y;
+  for (int j = 0; j < num_tris; j++) {
+    head.col(col_count) << p.x, p.y, -1.0;
+    next_x = p.x + (s * cos(j * theta));
+    next_y = p.y + (s * sin(j * theta));
+    col_count++;
+    head.col(col_count) << next_x, next_y, -1.0;
+    next_x = p.x + (s * cos((j + 1) * theta));
+    next_y = p.y + (s * sin((j + 1) * theta));
+    col_count++;
+    head.col(col_count) << next_x, next_y, -1.0;
+    col_count++;
+  }
+
+  shader.setUniform("in_color", nanogui::Color(239.0f/255, 209.0f/255, 199.0f/255, 1.0f));
+  shader.uploadAttrib("in_position", head);
+  shader.drawArray(GL_TRIANGLES, 0, num_tris * 3);
+
 }
 
 void ClothSimulator::drawRestPose(GLShader &shader) {
@@ -661,12 +696,12 @@ void ClothSimulator::initGUI(Screen *screen) {
     b->setChangeCallback(
             [this](bool state) { hairs->enable_support_constraints = state; });
 
-    b = new Button(window, "bending");
-    b->setFlags(Button::ToggleButton);
-    b->setPushed(hairs->enable_bending_constraints);
-    b->setFontSize(14);
-    b->setChangeCallback(
-        [this](bool state) { hairs->enable_bending_constraints = state; });
+//    b = new Button(window, "bending");
+//    b->setFlags(Button::ToggleButton);
+//    b->setPushed(hairs->enable_bending_constraints);
+//    b->setFontSize(14);
+//    b->setChangeCallback(
+//        [this](bool state) { hairs->enable_bending_constraints = state; });
 
     b = new Button(window, "core");
     b->setFlags(Button::ToggleButton);
@@ -779,29 +814,6 @@ void ClothSimulator::initGUI(Screen *screen) {
     });
   }
 
-  new Label(window, "cs", "sans-bold");
-  {
-    Widget *panel = new Widget(window);
-    panel->setLayout(
-            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
-
-    Slider *slider = new Slider(panel);
-    slider->setValue(hairs->cs);
-    slider->setFixedWidth(105);
-
-    TextBox *percentage = new TextBox(panel);
-    percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hairs->cs - 4472) / 271.0));
-    percentage->setUnits("%");
-    percentage->setFontSize(14);
-
-    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
-    slider->setFinalCallback([&](float value) {
-        hairs->cs = (value * 271) + 4472;
-//       cout << "Final slider value: " << hair->cs << endl;
-    });
-  }
-
   new Label(window, "kb", "sans-bold");
   {
     Widget *panel = new Widget(window);
@@ -822,29 +834,6 @@ void ClothSimulator::initGUI(Screen *screen) {
     slider->setFinalCallback([&](float value) {
         hairs->kb = (value * 71900.0) + 100.0;
 //        cout << "Final slider value: " << hair->kb << endl;
-    });
-  }
-
-  new Label(window, "cb", "sans-bold");
-  {
-    Widget *panel = new Widget(window);
-    panel->setLayout(
-            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
-
-    Slider *slider = new Slider(panel);
-    slider->setValue(hairs->cb);
-    slider->setFixedWidth(105);
-
-    TextBox *percentage = new TextBox(panel);
-    percentage->setFixedWidth(75);
-    percentage->setValue(to_string((hairs->cb - 40.0) / 2455.0));
-    percentage->setUnits("%");
-    percentage->setFontSize(14);
-
-    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
-    slider->setFinalCallback([&](float value) {
-        hairs->cb = (value * 2455.0) + 40.0;
-//        cout << "Final slider value: " << hair->cb << endl;
     });
   }
 
@@ -869,29 +858,32 @@ void ClothSimulator::initGUI(Screen *screen) {
         hairs->kc = (value * 585000.0) + 15000.0;
 //        cout << "Final slider value: " << hair->kc << endl;
     });
+  }
 
-    new Label(window, "cc", "sans-bold");
-    {
-      Widget *panel = new Widget(window);
-      panel->setLayout(
-              new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+  new Label(window, "damping", "sans-bold");
+  {
+    Widget *panel = new Widget(window);
+    panel->setLayout(
+            new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
 
-      Slider *slider = new Slider(panel);
-      slider->setValue(hairs->cc);
-      slider->setFixedWidth(105);
+    Slider *slider = new Slider(panel);
+    slider->setValue(hairs->damping);
+    slider->setFixedWidth(105);
 
-      TextBox *percentage = new TextBox(panel);
-      percentage->setFixedWidth(75);
-      percentage->setValue(to_string((hairs->cc - 100.0) / 9900.0));
-      percentage->setUnits("%");
-      percentage->setFontSize(14);
+    TextBox *percentage = new TextBox(panel);
+    percentage->setFixedWidth(75);
+    percentage->setValue(to_string(hairs->damping));
+    percentage->setUnits("%");
+    percentage->setFontSize(14);
 
-      slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
-      slider->setFinalCallback([&](float value) {
-          hairs->cc = (value * 9900.0) + 100.0;
-//          cout << "Final slider value: " << hair->cc << endl;
-      });
-    }
+    slider->setCallback([percentage](float value) { percentage->setValue(std::to_string(value)); });
+    slider->setFinalCallback([&](float value) {
+        hairs->damping = value;
+//        cout << "Final slider value: " << hairs->damping << endl;
+    });
+  }
+
+
   }
 
   // Gravity
@@ -953,5 +945,4 @@ void ClothSimulator::initGUI(Screen *screen) {
 //    cw->setCallback(
 //        [this](const nanogui::Color &color) { this->color = color; });
 //  }
-}
 

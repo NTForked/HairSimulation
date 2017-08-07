@@ -21,9 +21,14 @@ HairVector(vector<Hair*> *hair_vector)
         : hair_vector(hair_vector) {}
 ~HairVector();
 
+void buildGrid(Vector3D start_pos);
 void simulate(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations);
 
 vector<Hair*> * hair_vector;
+int num_hairs;
+int particles_count;
+double length;
+double damping;
 
 bool enable_stretch_constraints = true;
 bool enable_support_constraints = true;
