@@ -261,9 +261,9 @@ void ClothSimulator::drawStretchSprings(GLShader &shader) {
       Vector3D pa = s.pm_a->position;
       Vector3D pb = s.pm_b->position;
 
-      particle_positions.col(0) << pa.x + 0.1, pa.y, pa.z;
-      particle_positions.col(1) << pa.x, pa.y + 0.1, pa.z;
-      particle_positions.col(2) << pa.x - 0.1, pa.y, pa.z;
+      particle_positions.col(0) << pa.x + 0.5, pa.y, pa.z;
+      particle_positions.col(1) << pa.x, pa.y + 0.5, pa.z;
+      particle_positions.col(2) << pa.x - 0.5, pa.y, pa.z;
 
       stretch_springs.col(si) << pa.x, pa.y, pa.z;
       stretch_springs.col(si + 1) << pb.x, pb.y, pb.z;
@@ -273,9 +273,9 @@ void ClothSimulator::drawStretchSprings(GLShader &shader) {
       shader.drawArray(GL_TRIANGLES, 0, 3);
 
       if (i == num_springs - 1) {
-        particle_positions.col(0) << pb.x + 0.1, pb.y, pb.z;
-        particle_positions.col(1) << pb.x, pb.y + 0.1, pb.z;
-        particle_positions.col(2) << pb.x - 0.1, pb.y, pb.z;
+        particle_positions.col(0) << pb.x + 0.5, pb.y, pb.z;
+        particle_positions.col(1) << pb.x, pb.y + 0.5, pb.z;
+        particle_positions.col(2) << pb.x - 0.5, pb.y, pb.z;
 
         shader.setUniform("in_color", nanogui::Color(1.0f, 1.0f, 1.0f, 1.0f));
         shader.uploadAttrib("in_position", particle_positions);
@@ -338,53 +338,94 @@ void ClothSimulator::drawSupportSprings(GLShader &shader) {
 
 void ClothSimulator::drawSmoothCurve(GLShader &shader) {
   int total_springs = 0;
-  int total_particles = 0;
   for (Hair* hair : *(hairs->hair_vector)) {
     total_springs += hair->particles_count - 1;
-    total_particles += hair->particles_count;
   }
 
-  MatrixXf smoothed_positions(3, 3);
-  MatrixXf smooth_curve(3, total_springs * 2);
-
-  int si = 0;
-  // Draw springs as lines
-  for (Hair* hair : *(hairs->hair_vector)) {
-    for (int i = 0; i < hair->springs.size(); i++) {
-      Spring s = hair->springs[i];
-
-      Vector3D smoothed_pa = s.pm_a->smoothed_position;
-      Vector3D smoothed_pb = s.pm_b->smoothed_position;
-
-
-//    smoothed_positions.col(0) << smoothed_pa.x+0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
-//    smoothed_positions.col(1) << smoothed_pa.x, smoothed_pa.y+0.1, smoothed_pa.z + 0.05;
-//    smoothed_positions.col(2) << smoothed_pa.x-0.1, smoothed_pa.y, smoothed_pa.z + 0.05;
+//  MatrixXf smoothed_positions(3, 3);
+//  MatrixXf smooth_curve(3, total_springs * 2);
 //
-      smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
-      smooth_curve.col(si + 1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
+//  int si = 0;
+//  // Draw springs as lines
+//  for (Hair* hair : *(hairs->hair_vector)) {
+//    for (int i = 0; i < hair->springs.size(); i++) {
+//      Spring s = hair->springs[i];
+//
+//      Vector3D smoothed_pa = s.pm_a->smoothed_position;
+//      Vector3D smoothed_pb = s.pm_b->smoothed_position;
+//      Vector3D center = Vector3D(smoothed_pa.x - (smoothed_pa.x - smoothed_pb.x)/2.0,
+//                                 smoothed_pa.y - (smoothed_pa.y - smoothed_pb.y)/2.0, 0.0);
+//
+//
+//    smoothed_positions.col(0) << center.x+0.5, center.y, center.z + 0.05;
+//    smoothed_positions.col(1) << center.x, center.y+0.5, center.z + 0.05;
+//    smoothed_positions.col(2) << center.x-0.5, center.y, center.z + 0.05;
+//
+//      smooth_curve.col(si) << smoothed_pa.x, smoothed_pa.y, smoothed_pa.z;
+//      smooth_curve.col(si + 1) << smoothed_pb.x, smoothed_pb.y, smoothed_pb.z;
 //
 //    shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
 //    shader.uploadAttrib("in_position", smoothed_positions);
 //    shader.drawArray(GL_TRIANGLES, 0, 3);
 //
-//    if (i == num_springs - 1) {
-//      smoothed_positions.col(0) << smoothed_pb.x + 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
-//      smoothed_positions.col(1) << smoothed_pb.x, smoothed_pb.y + 0.1, smoothed_pb.z + 0.05;
-//      smoothed_positions.col(2) << smoothed_pb.x - 0.1, smoothed_pb.y, smoothed_pb.z + 0.05;
+//    if (i == hair->springs.size() - 1) {
+//      smoothed_positions.col(0) << smoothed_pb.x + 0.5, smoothed_pb.y, smoothed_pb.z + 0.05;
+//      smoothed_positions.col(1) << smoothed_pb.x, smoothed_pb.y + 0.5, smoothed_pb.z + 0.05;
+//      smoothed_positions.col(2) << smoothed_pb.x - 0.5, smoothed_pb.y, smoothed_pb.z + 0.05;
 //
 //      shader.setUniform("in_color", nanogui::Color(0.0f, 0.0f, 0.0f, 1.0f));
 //      shader.uploadAttrib("in_position", smoothed_positions);
 //      shader.drawArray(GL_TRIANGLES, 0, 3);
 //    }
+//
+//      si += 2;
+//    }
+//  }
+//
+//  shader.setUniform("in_color", nanogui::Color(0.698f, 0.133f, 0.133f, 1.0f));
+//  shader.uploadAttrib("in_position", smooth_curve);
+//  shader.drawArray(GL_LINES, 0, total_springs * 2);
 
-      si += 2;
+  //draw curves
+  int lineAmount = 20;
+  float z = 0.0f;
+  for (Hair* hair : *(hairs->hair_vector)) {
+    int total_segments = (int) hair->springs.size() * lineAmount * 2;
+    MatrixXf curve(3, total_segments);
+    int si2 = 0;
+    for (int i = 0; i < hair->springs.size(); i++) {
+      Spring s = hair->springs[i];
+      Vector3D pos_a = s.pm_a->smoothed_position;
+      Vector3D pos_b = s.pm_b->smoothed_position;
+      Vector3D center = Vector3D(pos_a.x - (pos_a.x - pos_b.x)/2.0,
+                                 pos_a.y - (pos_a.y - pos_b.y)/2.0, 0.0);
+      float theta = (float) (PI / float(lineAmount));
+      float radius = float((pos_a - pos_b).norm() / 2.0);
+      Vector3D v1 = Vector3D(radius, 0, 0).unit();
+      Vector3D v2 = (pos_a - center).unit();
+      float start_angle = atan2f(v2.y, v2.x) - atan2f(v1.y, v1.x);
+
+      float x = radius * cosf(start_angle);
+      float y = radius * sinf(start_angle);
+
+      for(float j = 0.0f; j <= PI; j+=theta) {
+        curve.col(si2) << center.x + x, center.y + y, z;
+
+        x = radius * cosf(start_angle + j + theta);
+        y = radius * sinf(start_angle + j + theta);
+
+        curve.col(si2 + 1) << center.x + x, center.y + y, z;
+
+        si2 += 2;
+      }
     }
+  shader.setUniform("in_color", nanogui::Color(0.698f, 0.133f, 0.133f, 1.0f));
+//    shader.setUniform("in_color", nanogui::Color(0.0f, 1.0f, 0.0f, 1.0f));
+    shader.uploadAttrib("in_position", curve);
+    shader.drawArray(GL_LINE_STRIP, 0, total_segments);
   }
 
-  shader.setUniform("in_color", nanogui::Color(0.698f, 0.133f, 0.133f, 1.0f));
-  shader.uploadAttrib("in_position", smooth_curve);
-  shader.drawArray(GL_LINES, 0, total_springs * 2);
+
 }
 
 void ClothSimulator::drawLocalFrame(GLShader &shader) {

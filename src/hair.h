@@ -19,7 +19,7 @@ Hair(int particles_count, double length)
 ~Hair();
 
 void externalForces(double frames_per_sec, double simulation_steps, vector<Vector3D> external_accelerations, double density);
-void stretchSpring(double frames_per_sec, double simulation_steps, double ks, double cs);
+void stretchSpring(double frames_per_sec, double simulation_steps, double ks, double cs, double ab);
 void supportSpring(double frames_per_sec, double simulation_steps, double kb, double cb, double bend_constant);
 void bendSpring(double frames_per_sec, double simulation_steps, double kb, double cb, double bend_constant);
 void coreSpring(double frames_per_sec, double simulation_steps, double kc, double cc, double bend_constant);

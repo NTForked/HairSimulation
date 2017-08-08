@@ -48,7 +48,7 @@ void HairVector::buildGrid(Vector3D start_pos) {
   for (int j = 0; j < hair->point_masses.size() - 2; j++) { 
     PointMass* pm1 = &(hair->point_masses[j]);
     PointMass* pm2 = &(hair->point_masses[j+2]); 
-    double spring_length = (pm2->position - pm1->position).norm(); 
+    double spring_length = (pm2->start_position - pm1->start_position).norm(); 
     Spring* s = new Spring(pm1, pm2, spring_length); 
     hair->support_springs.push_back(*s); 
   }
@@ -82,9 +82,9 @@ void HairVector::simulate(double frames_per_sec, double simulation_steps, vector
   for (Hair* hair : *hair_vector) {
     hair->externalForces(frames_per_sec, simulation_steps, external_accelerations, density);
     hair->restCoreSmoothingFunction(ac);
-    if (enable_stretch_constraints) { hair->stretchSpring(frames_per_sec, simulation_steps, ks, cs); }
+    if (enable_stretch_constraints) { hair->stretchSpring(frames_per_sec, simulation_steps, ks, cs, ab); }
     if (enable_support_constraints) { hair->supportSpring(frames_per_sec, simulation_steps, kb, cb, ab); }
-    if (enable_bending_constraints) { hair->bendSpring(frames_per_sec, simulation_steps, kb, cb, ab); }
+//    if (enable_bending_constraints) { hair->bendSpring(frames_per_sec, simulation_steps, kb, cb, ab); }
     if (enable_core_constraints) { hair->coreSpring(frames_per_sec, simulation_steps, kc, cc, ac); }
     hair->updatePositions(frames_per_sec, simulation_steps, density, damping);
   }

@@ -281,8 +281,8 @@ int main(int argc, char **argv) {
   // Initialize the Hair object
   Vector3D start_pos = Vector3D();
   for (int i = 0; i < hairs.num_hairs; i++) {
-    start_pos.x = 3.0 * (i % 5);
-    start_pos.y = 3.0 * (i / 5);
+    start_pos.x = 3.0 * (i % 5) + ((double) rand() * 2.0 / RAND_MAX);
+    start_pos.y = 3.0 * (i / 5) + ((double) rand() * 2.0 / RAND_MAX);
     hairs.buildGrid(start_pos);
   }
 

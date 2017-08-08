@@ -33,7 +33,9 @@ void Hair::externalForces(double frames_per_sec, double simulation_steps, vector
   }
 }
 
-void Hair::stretchSpring(double frames_per_sec, double simulation_steps, double ks, double cs) {
+void Hair::stretchSpring(double frames_per_sec, double simulation_steps, double ks, double cs, double ab) {
+  positionSmoothingFunction(ab); // to show smoothed curve
+
   double delta_t = 1.0f / frames_per_sec / simulation_steps;
   for (Spring &s : springs) {
     double current_length = (s.pm_a->position - s.pm_b->position).norm();
@@ -46,6 +48,7 @@ void Hair::stretchSpring(double frames_per_sec, double simulation_steps, double 
 }
 
 void Hair::supportSpring(double frames_per_sec, double simulation_steps, double kb, double cb, double ab) { 
+
   positionSmoothingFunction(ab);   // to show smoothed curve
 
   double delta_t = 1.0f / frames_per_sec / simulation_steps; 
@@ -190,8 +193,6 @@ void Hair::restCoreSmoothingFunction(double ac) {
 }
 
 void Hair::positionSmoothingFunction(double bend_constant) {
-  double smoothing_constant;
-
   for (int i = 0; i < point_masses.size()-1; i++) {
     if (i == 0) {
       PointMass* pm = &point_masses[0];
