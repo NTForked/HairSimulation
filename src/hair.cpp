@@ -295,12 +295,6 @@ void Hair::updatePositions(double frames_per_sec, double simulation_steps, doubl
         s.pm_b->position += (s.pm_a->position - s.pm_b->position).unit() * (diff / 2.0);
       }
     }
-//    if (s.pm_b->position.y > s.pm_a->position.y * 1.1) {
-//      double diff = s.pm_b->position.y - (s.pm_a->position.y * 1.1);
-////      s.pm_a->position.y += (s.pm_b->position - s.pm_a->position).unit().y * (diff / 2.0);
-//      double temp = (s.pm_a->position - s.pm_b->position).unit().y;
-//      s.pm_b->position.y += (s.pm_a->position - s.pm_b->position).unit().y * diff * 2.0;
-//    }
   }
 
   for (Spring &s : support_springs) {

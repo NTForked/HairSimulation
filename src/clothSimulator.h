@@ -32,12 +32,17 @@ public:
 private:
   virtual void initGUI(Screen *screen);
   void drawHead(GLShader &shader);
+  void drawHair(GLShader &shader);
   void drawRestPose(GLShader &shader);
   void drawStretchSprings(GLShader &shader);
   void drawSupportSprings(GLShader &shader);
   void drawSmoothCurve(GLShader &shader);
   void drawLocalFrame(GLShader &shader);
   void drawTargetVector(GLShader &shader);
+  void evaluateStep();
+  std::vector< std::vector<Vector3D> > evaluatedLevels;
+  std::vector<Vector3D> controlPoints;
+  float t;
 
   // Camera methods
 
